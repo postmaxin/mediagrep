@@ -15,6 +15,7 @@ option(MEDIAGREP_LINK_STATIC
 add_library(mediagrep_core STATIC
     src/expr.cpp
     src/parser.cpp
+    src/units.cpp
 )
 target_include_directories(mediagrep_core PUBLIC src)
 
@@ -32,6 +33,7 @@ if(MEDIAGREP_BUILD_TESTS)
     add_executable(mediagrep_tests
         tests/main.cpp
         tests/test_parser.cpp
+        tests/test_units.cpp
     )
     target_include_directories(mediagrep_tests PRIVATE third_party/doctest)
     target_link_libraries(mediagrep_tests PRIVATE mediagrep_core)

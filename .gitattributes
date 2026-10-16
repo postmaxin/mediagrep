@@ -1,0 +1,10 @@
+# Normalize line endings to LF in the repository on every platform.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.mkv binary
+*.mp4 binary
+*.webm binary
+*.mp3 binary
+*.ogg binary
+*.flac binary
