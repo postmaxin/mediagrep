@@ -82,7 +82,7 @@ dependency. Pure: no I/O, no MediaInfo.
 
 Input: `Expr`, a `MetadataSource`, and options (case-insensitive flag).
 Output: a `Match` holding a boolean plus the list of `(track, field,
-value)` triples that satisfied comparisons, for `-o` output.
+value)` triples that satisfied comparisons, for the default output.
 
 `MetadataSource` is the seam between logic and library:
 
@@ -131,8 +131,10 @@ fields through `Count_Get` plus `Get` by index with `Info_Name`.
 Expands the path arguments with `std::filesystem`. Directories recurse
 (`-r`, the default); `-R` also follows symlinks. `--include` and
 `--exclude` globs filter by filename. Files are numbered in discovery
-order, dispatched to a queue served by `-j` workers (default
-`hardware_concurrency`), and results are handed to the printer in
+order, dispatched to a queue served by `-j` workers (default: the
+smaller of 2 and `hardware_concurrency`, because the bottleneck is disk
+or network seeks and more workers mostly add contention), and results
+are handed to the printer in
 sequence number order, so output is deterministic regardless of thread
 timing.
 
@@ -182,8 +184,8 @@ than `or`. Track and field names are case-insensitive. `INDEX` is
   - Date: chronological. Values accept `YYYY`, `YYYY-MM-DD`, or
     `YYYY-MM-DD HH:MM:SS`. MediaInfo dates are parsed from their raw
     form (`UTC 2024-03-01 12:00:00`).
-  - Text: `=` and `!=` are case-insensitive exact matches. `<` and `>`
-    compare lexically. `~` and `!~` are unanchored regex searches.
+  - Text: `=` and `!=` are exact matches. `<` and `>` compare
+    lexically. `~` and `!~` are unanchored regex searches.
   - Binary: never matches; skipped by bare patterns.
 - **Units.** Applied only to fields whose raw unit is known:
   - Duration-like fields (raw milliseconds): `h`, `m`, `s`, `ms`
@@ -191,12 +193,14 @@ than `or`. Track and field names are case-insensitive. `INDEX` is
   - Size and bitrate fields (raw bytes or bits per second): `K`, `M`,
     `G`, `T` decimal suffixes. Bare number is the raw unit.
   - All other numeric fields: bare number only.
-- **Regex.** ECMAScript syntax via `std::regex`. `-i` makes `~`, `!~`,
-  and bare patterns case-insensitive. Equality is always
-  case-insensitive on text.
+- **Regex.** ECMAScript syntax via `std::regex`.
+- **Case.** As in grep, matching is case-sensitive unless `-i` is given.
+  `-i` applies to every string comparison anywhere: `=`, `!=`, `~`,
+  `!~`, and bare patterns, in `-e` expressions and the positional
+  pattern alike. Field and track names are case-insensitive regardless.
 - **Bare pattern.** A STRING atom, or the positional `PATTERN`, is a
   regex searched against every Text-typed field value in every track.
-  Matches record which field matched, for `-o`.
+  Matches record which field matched, for the default output.
 - **Multiple `-e`.** ORed, as in grep. `-v` inverts the whole result.
 
 ### Field discovery
@@ -223,40 +227,46 @@ with the grammar. Field comparisons and boolean operators require `-e`.
 | Option | Meaning |
 |---|---|
 | `-e EXPR` | Expression. Repeatable; ORed together. |
-| `-i` | Case-insensitive regex matching. |
+| `-i` | Case-insensitive string matching, regex and equality alike. |
 | `-v` | Print files that do not match. |
-| `-l` | Print matching paths (default). |
-| `-L` | Print non-matching paths. |
+| `-l` | Print only matching paths, one per file, instead of the default field lines. |
+| `-L` | Print only non-matching paths. |
 | `-c` | Print a count of matching files per PATH argument. |
-| `-o` | After each matching path, print each `Track/Field = value` that satisfied a comparison, indented. |
-| `-0` | NUL-terminate paths instead of newline. |
+| `-0` | NUL-terminate output records instead of newline. |
 | `-r` | Recurse into directories, do not follow symlinks (default). |
 | `-R` | Recurse and follow symlinks. |
 | `--include GLOB` | Only files whose name matches. Repeatable. |
 | `--exclude GLOB` | Skip files whose name matches. Repeatable. |
-| `-j N` | Worker threads. Default: hardware concurrency. |
+| `-j N` | Worker threads. Default: min(2, hardware concurrency). |
 | `--parse-speed F` | MediaInfoLib ParseSpeed, 0 to 1. Default 0. |
 | `--fields FILE` | Dump all fields of one file and exit. |
 | `-q` | Quiet: no output, exit status only. |
 | `-s` | Suppress warnings about unreadable files. |
 | `--version`, `--help` | The usual. |
 
-Flags borrowed from grep keep grep's meaning. `-o` is the one stretch:
-grep prints the matched text, we print the matched field.
+Flags borrowed from grep keep grep's meaning.
 
 ## Output
 
-Default: one path per matching file, in discovery order. Paths are
-printed as given on the command line joined with the relative part
-found by the walker, like grep.
-
-`-o` example:
+Default output mirrors grep's `file: line` form, with the matching
+field standing in for the line. One line per `(track, field, value)`
+triple that satisfied a comparison, in discovery order of files and
+track order within a file:
 
 ```
-videos/talk.mkv
-    General/Publisher = Interesting Engineering
-    Video/Height = 720
+videos/talk.mkv: General/Publisher: Interesting Engineering
+videos/talk.mkv: Video/Height: 720
 ```
+
+Track names carry a 1-based index when the file has more than one
+track of that kind, as in `Audio[2]/Language`. A file that matches
+without producing any triples, for instance via `not Audio/Language =
+ja`, prints its path alone. `-v` and `-L` print paths alone, since a
+non-match has no matching field.
+
+`-l` collapses this to one path per matching file. Paths are printed as
+given on the command line joined with the relative part found by the
+walker, like grep.
 
 ## Errors and exit status
 
@@ -280,7 +290,7 @@ videos/talk.mkv
   from bad text to expected error offset.
 - **Evaluator:** doctest cases against a fake `MetadataSource` covering
   every operator, each value type, the any-track rule, missing fields,
-  units, and `-o` match reporting.
+  units, case sensitivity, and match triple reporting.
 - **Backend and CLI:** end-to-end tests over committed fixture files in
   `tests/fixtures/`: a handful of media files under 50 KB each with
   known tags, generated by `tests/fixtures/make.sh` using ffmpeg. The
