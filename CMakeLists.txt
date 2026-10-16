@@ -13,6 +13,7 @@ option(MEDIAGREP_LINK_STATIC
 # Core library: everything except main(), so tests can link it.
 # ---------------------------------------------------------------------------
 add_library(mediagrep_core STATIC
+    src/eval.cpp
     src/expr.cpp
     src/parser.cpp
     src/units.cpp
@@ -32,6 +33,7 @@ if(MEDIAGREP_BUILD_TESTS)
     enable_testing()
     add_executable(mediagrep_tests
         tests/main.cpp
+        tests/test_eval.cpp
         tests/test_parser.cpp
         tests/test_units.cpp
     )
