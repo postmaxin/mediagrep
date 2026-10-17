@@ -114,6 +114,21 @@ TEST_CASE("size and bitrate operands use decimal multipliers") {
     CHECK(matches("OverallBitRate < 1.1Mb", src));
 }
 
+TEST_CASE("a text-typed field with a measure and a numeric value compares numerically") {
+    // MediaInfoLib declares some numeric parameters (FileSize) as text.
+    FakeSource withMeasure;
+    withMeasure.add(TrackKind::General,
+                    {FieldValue{"FileSize", "734003200", ValueType::Text, " byte"}});
+    CHECK(matches("FileSize > 700M", withMeasure));
+    CHECK(matches("FileSize < 1G", withMeasure));
+    CHECK_FALSE(matches("FileSize > 1G", withMeasure));
+
+    // Without a measure, text stays text: "734003200" < "9" lexically.
+    FakeSource plainText;
+    plainText.add(TrackKind::General, {text("FileSize", "734003200")});
+    CHECK(matches("FileSize < 9", plainText));
+}
+
 TEST_CASE("a non-numeric operand on a numeric field is false with a warning") {
     auto src = typicalVideo();
     Match m = run("Video/Height < tall", src);

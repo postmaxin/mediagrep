@@ -104,7 +104,11 @@ struct Evaluator::Impl {
             return e.op == Op::Match ? found : !found;
         }
 
-        if (fv.type == ValueType::Integer || fv.type == ValueType::Float) {
+        // Numeric when declared so, or when the library attached a unit of
+        // measure to a numeric-looking value (it declares FileSize as text).
+        const bool numeric = fv.type == ValueType::Integer || fv.type == ValueType::Float ||
+                             (!fv.measure.empty() && parseNumber(fv.value, "").has_value());
+        if (numeric) {
             const std::optional<double> operand = parseNumber(e.value, fv.measure);
             if (!operand) {
                 const std::string msg = "field " + fv.name + ": operand '" + e.value +
