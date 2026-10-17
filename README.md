@@ -102,10 +102,12 @@ Exit status is 0 if any file was selected, 1 if none, 2 on error.
 ### Patterns
 
 `PATTERN`, and a quoted string inside an expression, is a regex
-(ECMAScript syntax) searched against every field of every track.
-It is not parsed as an expression, so regex metacharacters never
-collide with the expression grammar. Comparisons and boolean
-operators require `-e`.
+(ECMAScript syntax) searched against every field of every track,
+except the fields MediaInfoLib derives from the path (`CompleteName`,
+`FolderName`, `FileName` and friends), so a search for a channel name
+is not satisfied by the folder it was downloaded into. It is not parsed
+as an expression, so regex metacharacters never collide with the
+expression grammar. Comparisons and boolean operators require `-e`.
 
 ### Expressions
 

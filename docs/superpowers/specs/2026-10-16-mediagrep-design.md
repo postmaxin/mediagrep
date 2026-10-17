@@ -209,8 +209,11 @@ than `or`. Track and field names are case-insensitive. `INDEX` is
   pattern alike. Field and track names are case-insensitive regardless.
 - **Bare pattern.** A STRING atom, or the positional `PATTERN`, is a
   regex searched against every non-binary field value in every track,
-  numeric fields included. Matches record which field matched, for the
-  default output.
+  numeric fields included, except the General fields MediaInfoLib derives
+  from the path (CompleteName, FolderName, FileName, FileNameExtension,
+  FileExtension and their _Last variants), so a metadata search is never
+  satisfied by the file's location. Matches record which field matched,
+  for the default output.
 - **Multiple `-e`.** ORed, as in grep. `-v` inverts the whole result.
 
 ### Field discovery

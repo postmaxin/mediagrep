@@ -220,6 +220,25 @@ TEST_CASE("a bare pattern searches every non-binary field in every track") {
     CHECK(matches("'engineering'", src, true));
 }
 
+TEST_CASE("a bare pattern ignores the path-derived fields the library synthesizes") {
+    // MediaInfoLib reports CompleteName, FolderName, FileName and friends as
+    // General fields. Matching those would make every search a path search.
+    FakeSource src;
+    src.add(TrackKind::General, {
+        text("CompleteName", "/media/Johnny Harris/clip.mkv"),
+        text("FolderName", "/media/Johnny Harris"),
+        text("FileNameExtension", "clip.mkv"),
+        text("FileName", "clip"),
+        text("FileExtension", "mkv"),
+        text("Title", "A clip"),
+    });
+    CHECK_FALSE(matches("'Johnny Harris'", src));
+    CHECK_FALSE(matches("'mkv'", src, true));
+    CHECK(matches("'A clip'", src));
+    // Explicit comparisons on those fields still work.
+    CHECK(matches("FolderName ~ 'Johnny'", src));
+}
+
 TEST_CASE("a bare pattern reports every field it matched") {
     auto src = typicalVideo();
     Match m = run("'AAC'", src);

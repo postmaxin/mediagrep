@@ -47,6 +47,26 @@ bool applyOrder(Op op, int cmp) {
 
 int threeWay(double a, double b) { return a < b ? -1 : (a > b ? 1 : 0); }
 
+bool iequals(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) return false;
+    for (std::size_t i = 0; i < a.size(); ++i)
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i])))
+            return false;
+    return true;
+}
+
+// General fields MediaInfoLib derives from the path rather than the file's
+// contents. Bare patterns skip them so a search for a channel name is not
+// satisfied by the folder it was downloaded into. Explicit comparisons on
+// these fields still work.
+bool isPathDerived(std::string_view name) {
+    for (std::string_view n : {"CompleteName", "FolderName", "FileName", "FileNameExtension",
+                               "FileExtension", "CompleteName_Last", "FolderName_Last",
+                               "FileName_Last", "FileNameExtension_Last", "FileExtension_Last"})
+        if (iequals(n, name)) return true;
+    return false;
+}
+
 struct Result {
     bool ok = false;
     std::vector<MatchedField> fields;
@@ -166,6 +186,7 @@ struct Evaluator::Impl {
                     for (std::size_t i = 0; i < n; ++i) {
                         src.forEachField(kind, i, [&](const FieldValue& fv) {
                             if (fv.type == ValueType::Binary) return;
+                            if (kind == TrackKind::General && isPathDerived(fv.name)) return;
                             if (!std::regex_search(fv.value, re)) return;
                             r.ok = true;
                             r.fields.push_back({kind, i, n > 1, fv.name, fv.value});
