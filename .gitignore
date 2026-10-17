@@ -4,3 +4,4 @@ build/
 *.exe
 compile_commands.json
 .cache/
+*.log
