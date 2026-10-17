@@ -149,6 +149,38 @@ mediagrep -e 'FileSize > 4G' --include '*.mkv' /mnt/media
 mediagrep -c -e 'not Audio/Language' ~/Music   # files with no language tag
 ```
 
+### The File track
+
+Alongside MediaInfoLib's `General`, `Video`, `Audio`, `Text`, `Image`,
+`Menu` and `Other` tracks, mediagrep adds a `File` track from `stat`:
+`Name`, `Directory`, `Extension`, `Size`, `Modified`, `Created` (where
+the OS records a birth time), `Accessed`, and on POSIX `Mode`, `Owner`,
+`Group`. Times are UTC, matching MediaInfoLib's own dates.
+
+```sh
+mediagrep -l -e 'File/Size > 4G' .
+mediagrep -l -e 'File/Modified >= 2026-01 and not Audio/Language' .
+```
+
+### Aliases
+
+A few `@names` stand for "any field that carries this kind of
+information". They expand to an OR over concrete fields, and the output
+shows which one matched. The sigil keeps them out of MediaInfoLib's
+namespace.
+
+| Alias | Looks in |
+|---|---|
+| `@when` | File/Modified, File/Created, Encoded_Date, Tagged_Date, Recorded_Date, Released_Date, Original/Released_Date, Mastered_Date, DATE |
+| `@who` | Performer, Artist, Publisher, Director, Composer, Author, Channel |
+| `@name` | File/Name, Title, Movie, Track, Album |
+
+```sh
+mediagrep -e '@when = 2024' .              # anything dated 2024, by any measure
+mediagrep -il -e '@who ~ engineering' .    # channel, artist, publisher, ...
+mediagrep -c -e 'not @when' .              # files with no date at all
+```
+
 Field names are case-insensitive. To see what a file actually carries:
 
 ```sh

@@ -216,7 +216,32 @@ than `or`. Track and field names are case-insensitive. `INDEX` is
   for the default output.
 - **Multiple `-e`.** ORed, as in grep. `-v` inverts the whole result.
 
-### Field discovery
+#### The File track and aliases
+
+Besides MediaInfoLib's seven stream kinds there is a `File` track that
+mediagrep fills from `stat()`: `Name`, `Directory`, `Extension`, `Size`
+(byte), `Modified`, `Created` (birth time where the OS keeps one),
+`Accessed` (all `YYYY-MM-DD HH:MM:SS UTC`), and on POSIX `Mode` (octal),
+`Owner`, `Group`. It takes part in unscoped lookups like any track, is
+listed by `--fields`, and is skipped by bare patterns like the other
+path-derived fields.
+
+Aliases are query-side names behind an `@` sigil, so they can never
+collide with a library parameter. An unscoped comparison or exists test
+on one expands to an OR over concrete fields, and the output names the
+field that actually matched:
+
+| Alias | Expands to |
+|---|---|
+| `@when` | File/Modified, File/Created, Encoded_Date, Tagged_Date, Recorded_Date, Released_Date, Original/Released_Date, Mastered_Date, DATE |
+| `@who` | Performer, Artist, Publisher, Director, Composer, Author, Channel |
+| `@name` | File/Name, Title, Movie, Track, Album |
+
+An unknown alias, or one scoped to a track, is rejected before any file
+is read. Date values also accept the compact `YYYYMMDD` form yt-dlp
+writes, when the month and day are plausible.
+
+## Field discovery
 
 `mediagrep --fields FILE` prints one `Track[N]/Field: value` line per
 field of one file and exits, in the same form as the default output. This is the answer to "what is the field
@@ -331,6 +356,7 @@ src/
   mediainfo_source.{h,cpp}
   walker.{h,cpp}
   fsys.{h,cpp}    directory listing and stat on UTF-8 paths, POSIX/Win32
+  file_track.{h,cpp}  the File track (stat info) layered on a MetadataSource
   units.{h,cpp}   unit and date parsing
   utf.{h,cpp}     UTF-8 <-> wchar_t shim (UTF-16 on Windows, UTF-32 elsewhere)
   pool.h          OrderedPool: parallel workers, in-order results

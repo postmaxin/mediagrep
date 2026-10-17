@@ -170,3 +170,24 @@ TEST_CASE("cli: non-ASCII file names are read and printed as UTF-8") {
 TEST_CASE("cli: -j 1 gives the same output") {
     CHECK(run("-j 1 -l -e \"Video/Height < 1000\" .").out == "./clip.mp4\n./talk.mkv\n");
 }
+
+TEST_CASE("cli: the File track is searchable and listed by --fields") {
+    Run r = run("-e \"File/Size > 10K\" talk.mkv");
+    CHECK(r.status == 0);
+    CHECK(r.out == "talk.mkv: File/Size: 11932\n");
+    CHECK(run("-l -e \"Size > 10K and Size < 20K\" .").out == "./talk.mkv\n");
+    Run f = run("--fields talk.mkv");
+    CHECK(f.out.find("File/Name: talk.mkv\n") != std::string::npos);
+    CHECK(f.out.find("File/Size: 11932\n") != std::string::npos);
+    CHECK(f.out.find("File/Modified: ") != std::string::npos);
+}
+
+TEST_CASE("cli: aliases expand and report the concrete field") {
+    CHECK(run("-e \"@who ~ Engineering\" talk.mkv").out ==
+          "talk.mkv: General/PUBLISHER: Interesting Engineering\n");
+    CHECK(run("-e \"@name ~ talk\" talk.mkv").out == "talk.mkv: File/Name: talk.mkv\n");
+    CHECK(run("-e \"@when\" -l song.mp3").out == "song.mp3\n");
+    Run bad = run("-e \"@bogus = 1\" .");
+    CHECK(bad.status == 2);
+    CHECK(bad.out.find("unknown alias") != std::string::npos);
+}

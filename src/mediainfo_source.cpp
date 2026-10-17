@@ -63,10 +63,14 @@ MediaInfoDLL::stream_t toStream(TrackKind kind) {
         case TrackKind::Image: return MediaInfoDLL::Stream_Image;
         case TrackKind::Menu: return MediaInfoDLL::Stream_Menu;
         case TrackKind::Other: return MediaInfoDLL::Stream_Other;
-        case TrackKind::Any: break;
+        case TrackKind::Any:
+        case TrackKind::File: break;
     }
     return MediaInfoDLL::Stream_General;
 }
+
+// Only MediaInfoLib's own stream kinds have a slot in the cache.
+bool isLibraryKind(TrackKind kind) { return kind != TrackKind::Any && kind != TrackKind::File; }
 
 constexpr std::array<TrackKind, 7> kKinds{
     TrackKind::General, TrackKind::Video, TrackKind::Audio, TrackKind::Text,
@@ -146,7 +150,7 @@ struct MediaInfoSource::Impl {
     }
 
     const std::vector<FieldValue>* track(TrackKind kind, std::size_t index) const {
-        if (kind == TrackKind::Any) return nullptr;
+        if (!isLibraryKind(kind)) return nullptr;
         const auto& list = tracks[kindSlot(kind)];
         return index < list.size() ? &list[index] : nullptr;
     }
@@ -177,7 +181,7 @@ bool MediaInfoSource::open(const std::string& utf8Path) {
 bool MediaInfoSource::isMedia() const { return impl_->media; }
 
 std::size_t MediaInfoSource::trackCount(TrackKind kind) const {
-    if (kind == TrackKind::Any) return 0;
+    if (!isLibraryKind(kind)) return 0;
     return impl_->tracks[kindSlot(kind)].size();
 }
 

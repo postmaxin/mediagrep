@@ -16,6 +16,7 @@ add_library(mediagrep_core STATIC
     src/cli.cpp
     src/eval.cpp
     src/expr.cpp
+    src/file_track.cpp
     src/fsys.cpp
     src/mediainfo_source.cpp
     src/parser.cpp
@@ -98,6 +99,7 @@ if(MEDIAGREP_BUILD_TESTS)
         tests/main.cpp
         tests/test_cli.cpp
         tests/test_eval.cpp
+        tests/test_file_track.cpp
         tests/test_fsys.cpp
         tests/test_mediainfo.cpp
         tests/test_options.cpp

@@ -1,6 +1,7 @@
 // Parsing of user-supplied operands: numbers with units, and dates.
 #pragma once
 
+#include <ctime>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,5 +30,8 @@ std::optional<std::string> normalizeDateValue(std::string_view value);
 // prefix of the normalized value form, so comparisons are prefix
 // comparisons at the operand's granularity.
 std::optional<std::string> normalizeDateOperand(std::string_view text);
+
+// "YYYY-MM-DD HH:MM:SS UTC" for a time_t, the form used for File/ times.
+std::string formatUtcTime(std::time_t t);
 
 }  // namespace mediagrep

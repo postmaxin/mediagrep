@@ -12,6 +12,7 @@
 
 #include "cli.h"
 #include "eval.h"
+#include "file_track.h"
 #include "mediainfo_source.h"
 #include "parser.h"
 #include "pool.h"
@@ -45,11 +46,12 @@ int dumpFields(const Options& options) {
         return 1;
     }
     const char sep = options.nullSeparated ? '\0' : '\n';
+    const FileTrackSource all(src, *options.fieldsFile);
     for (TrackKind kind : {TrackKind::General, TrackKind::Video, TrackKind::Audio, TrackKind::Text,
-                           TrackKind::Image, TrackKind::Menu, TrackKind::Other}) {
-        const std::size_t n = src.trackCount(kind);
+                           TrackKind::Image, TrackKind::Menu, TrackKind::Other, TrackKind::File}) {
+        const std::size_t n = all.trackCount(kind);
         for (std::size_t i = 0; i < n; ++i) {
-            src.forEachField(kind, i, [&](const FieldValue& fv) {
+            all.forEachField(kind, i, [&](const FieldValue& fv) {
                 MatchedField f{kind, i, n > 1, fv.name, fv.value};
                 const std::string value = fv.type == ValueType::Binary ? "(binary)" : fv.value;
                 write(f.location() + ": " + value + sep);
@@ -134,7 +136,8 @@ int run(const Options& options) {
             }
             if (!source->isMedia()) return r;
             r.isMedia = true;
-            r.match = evaluator->evaluate(*source);
+            const FileTrackSource withFile(*source, job.path);
+            r.match = evaluator->evaluate(withFile);
         } catch (const std::exception& e) {
             r.error = true;
             r.message = e.what();

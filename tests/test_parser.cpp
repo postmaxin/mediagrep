@@ -143,3 +143,10 @@ TEST_CASE("parse errors carry a message") {
         CHECK(std::string(e.what()).find("value") != std::string::npos);
     }
 }
+
+TEST_CASE("File is a track kind and @names are ordinary field names") {
+    CHECK(p("File/Size > 1G") == "(> File/Size \"1G\")");
+    CHECK(p("file/name ~ talk") == "(~ File/name \"talk\")");
+    CHECK(p("@when = 2024") == "(= @when \"2024\")");
+    CHECK(p("@who") == "(exists @who)");
+}

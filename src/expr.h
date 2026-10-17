@@ -9,7 +9,9 @@
 
 namespace mediagrep {
 
-enum class TrackKind { Any, General, Video, Audio, Text, Image, Menu, Other };
+// General..Other are MediaInfoLib's stream kinds. File is mediagrep's own
+// track, filled from stat(): Name, Directory, Extension, Size, Modified, ...
+enum class TrackKind { Any, General, Video, Audio, Text, Image, Menu, Other, File };
 
 // "General", "Video", ...; "Any" has no name.
 std::string_view trackKindName(TrackKind kind);

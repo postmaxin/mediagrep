@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <regex>
 #include <unordered_map>
+#include <utility>
 
 #include "units.h"
 
@@ -19,15 +20,23 @@ std::string MatchedField::location() const {
 
 namespace {
 
-constexpr std::array<TrackKind, 7> kAllKinds{
+constexpr std::array<TrackKind, 8> kAllKinds{
     TrackKind::General, TrackKind::Video, TrackKind::Audio, TrackKind::Text,
-    TrackKind::Image,   TrackKind::Menu,  TrackKind::Other,
+    TrackKind::Image,   TrackKind::Menu,  TrackKind::Other, TrackKind::File,
 };
 
 std::string lowered(std::string_view s) {
     std::string out(s);
     for (char& c : out) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return out;
+}
+
+bool iequals(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) return false;
+    for (std::size_t i = 0; i < a.size(); ++i)
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i])))
+            return false;
+    return true;
 }
 
 // Applies an ordering operator to a three-way comparison result.
@@ -47,14 +56,6 @@ bool applyOrder(Op op, int cmp) {
 
 int threeWay(double a, double b) { return a < b ? -1 : (a > b ? 1 : 0); }
 
-bool iequals(std::string_view a, std::string_view b) {
-    if (a.size() != b.size()) return false;
-    for (std::size_t i = 0; i < a.size(); ++i)
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i])))
-            return false;
-    return true;
-}
-
 // General fields MediaInfoLib derives from the path rather than the file's
 // contents. Bare patterns skip them so a search for a channel name is not
 // satisfied by the folder it was downloaded into. Explicit comparisons on
@@ -65,6 +66,58 @@ bool isPathDerived(std::string_view name) {
                                "FileName_Last", "FileNameExtension_Last", "FileExtension_Last"})
         if (iequals(n, name)) return true;
     return false;
+}
+
+// ---------------------------------------------------------------------------
+// Aliases: "@when", "@who", "@name" expand to an OR over concrete fields.
+// They live behind the sigil so they can never collide with a library name.
+// ---------------------------------------------------------------------------
+
+struct Alias {
+    std::string_view name;
+    std::vector<std::string_view> members;  // "Track/Field" or "Field"
+};
+
+const std::vector<Alias>& aliases() {
+    static const std::vector<Alias> table{
+        {"when", {"File/Modified", "File/Created", "Encoded_Date", "Tagged_Date", "Recorded_Date",
+                  "Released_Date", "Original/Released_Date", "Mastered_Date", "DATE"}},
+        {"who", {"Performer", "Artist", "Publisher", "Director", "Composer", "Author", "Channel"}},
+        {"name", {"File/Name", "Title", "Movie", "Track", "Album"}},
+    };
+    return table;
+}
+
+bool isAlias(const FieldRef& ref) { return !ref.name.empty() && ref.name[0] == '@'; }
+
+const Alias* findAlias(std::string_view name) {
+    if (!name.empty() && name[0] == '@') name.remove_prefix(1);
+    for (const Alias& a : aliases())
+        if (iequals(a.name, name)) return &a;
+    return nullptr;
+}
+
+// "File/Modified" -> scoped ref; "Original/Released_Date" -> unscoped, since
+// Original is not a track kind. Same rule as the parser.
+FieldRef memberRef(std::string_view spec) {
+    FieldRef ref;
+    const std::size_t slash = spec.find('/');
+    if (slash != std::string_view::npos) {
+        if (const auto kind = trackKindFromName(spec.substr(0, slash))) {
+            ref.track = *kind;
+            ref.name = std::string(spec.substr(slash + 1));
+            return ref;
+        }
+    }
+    ref.name = std::string(spec);
+    return ref;
+}
+
+std::vector<FieldRef> expand(const FieldRef& ref) {
+    if (!isAlias(ref)) return {ref};
+    std::vector<FieldRef> out;
+    for (std::string_view m : findAlias(ref.name)->members) out.push_back(memberRef(m));
+    return out;
 }
 
 struct Result {
@@ -83,6 +136,12 @@ struct Evaluator::Impl {
 
     void compile(const Expr& e) {
         for (const auto& c : e.children) compile(*c);
+        if ((e.kind == Expr::Kind::Compare || e.kind == Expr::Kind::Exists) && isAlias(e.field)) {
+            if (e.field.track != TrackKind::Any)
+                throw EvalError("alias '" + e.field.name + "' cannot be scoped to a track");
+            if (!findAlias(e.field.name))
+                throw EvalError("unknown alias '" + e.field.name + "'");
+        }
         const bool needsRegex =
             e.kind == Expr::Kind::Pattern ||
             (e.kind == Expr::Kind::Compare && (e.op == Op::Match || e.op == Op::NotMatch));
@@ -154,6 +213,20 @@ struct Evaluator::Impl {
         return applyOrder(e.op, fv.value.compare(e.value));
     }
 
+    // Exists or Compare over one concrete field reference.
+    void evalField(const Expr& e, const FieldRef& ref, const MetadataSource& src, Result& r,
+                   std::vector<std::string>& warnings) const {
+        forEachInScope(ref, src, [&](TrackKind kind, std::size_t i, bool multi) {
+            const auto fv = src.lookup(kind, i, ref.name);
+            if (!fv) return;
+            const bool hit = e.kind == Expr::Kind::Exists ? !fv->value.empty()
+                                                           : compareValue(e, *fv, warnings);
+            if (!hit) return;
+            r.ok = true;
+            r.fields.push_back({kind, i, multi, fv->name, fv->value});
+        });
+    }
+
     Result eval(const Expr& e, const MetadataSource& src, std::vector<std::string>& warnings) const {
         Result r;
         switch (e.kind) {
@@ -182,6 +255,7 @@ struct Evaluator::Impl {
             case Expr::Kind::Pattern: {
                 const std::regex& re = regexes.at(&e);
                 for (TrackKind kind : kAllKinds) {
+                    if (kind == TrackKind::File) continue;  // path-derived, like below
                     const std::size_t n = src.trackCount(kind);
                     for (std::size_t i = 0; i < n; ++i) {
                         src.forEachField(kind, i, [&](const FieldValue& fv) {
@@ -197,21 +271,8 @@ struct Evaluator::Impl {
             }
 
             case Expr::Kind::Exists:
-                forEachInScope(e.field, src, [&](TrackKind kind, std::size_t i, bool multi) {
-                    const auto fv = src.lookup(kind, i, e.field.name);
-                    if (!fv || fv->value.empty()) return;
-                    r.ok = true;
-                    r.fields.push_back({kind, i, multi, fv->name, fv->value});
-                });
-                return r;
-
             case Expr::Kind::Compare:
-                forEachInScope(e.field, src, [&](TrackKind kind, std::size_t i, bool multi) {
-                    const auto fv = src.lookup(kind, i, e.field.name);
-                    if (!fv || !compareValue(e, *fv, warnings)) return;
-                    r.ok = true;
-                    r.fields.push_back({kind, i, multi, fv->name, fv->value});
-                });
+                for (const FieldRef& ref : expand(e.field)) evalField(e, ref, src, r, warnings);
                 return r;
         }
         return r;

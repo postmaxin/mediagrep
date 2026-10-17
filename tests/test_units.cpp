@@ -84,3 +84,20 @@ TEST_CASE("date operands reject non-dates") {
     CHECK_FALSE(normalizeDateOperand("2024-"));
     CHECK_FALSE(normalizeDateOperand("2024-03-01 12"));
 }
+
+TEST_CASE("formatUtcTime renders epoch seconds as a UTC date") {
+    CHECK(formatUtcTime(0) == "1970-01-01 00:00:00 UTC");
+    CHECK(formatUtcTime(1709294400) == "2024-03-01 12:00:00 UTC");
+}
+
+TEST_CASE("compact YYYYMMDD values are dates when month and day are plausible") {
+    CHECK(normalizeDateValue("20260121") == "2026-01-21 00:00:00");
+    CHECK_FALSE(normalizeDateValue("12345678"));  // month 34
+    CHECK_FALSE(normalizeDateValue("20261301"));  // month 13
+    CHECK_FALSE(normalizeDateValue("20260132"));  // day 32
+    CHECK_FALSE(normalizeDateValue("2026012"));   // seven digits
+}
+
+TEST_CASE("file-time values with a trailing UTC normalize") {
+    CHECK(normalizeDateValue("2026-01-22 03:14:05 UTC") == "2026-01-22 03:14:05");
+}

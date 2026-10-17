@@ -57,3 +57,20 @@ TEST_CASE("listDirectory fails with a message on a missing directory") {
 TEST_CASE("regular files are not symlinks") {
     CHECK_FALSE(fsys::isSymlink(fsys::join(kFixtures, "talk.mkv")));
 }
+
+TEST_CASE("stat reports size and modification time") {
+    auto info = fsys::stat(fsys::join(kFixtures, "talk.mkv"));
+    REQUIRE(info);
+    CHECK(info->size > 10000);
+    CHECK(info->size < 20000);
+    REQUIRE(info->modified);
+    CHECK(*info->modified > 1700000000);  // after late 2023
+#ifndef _WIN32
+    CHECK(info->mode != 0);
+    CHECK_FALSE(info->owner.empty());
+#endif
+}
+
+TEST_CASE("stat on a missing path yields nothing") {
+    CHECK_FALSE(fsys::stat(fsys::join(kFixtures, "nope.mkv")));
+}

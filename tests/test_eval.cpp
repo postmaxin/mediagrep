@@ -279,3 +279,59 @@ TEST_CASE("an invalid regex is rejected when the evaluator is built") {
     ExprPtr expr = parse("Title ~ '('");
     CHECK_THROWS_AS(Evaluator(*expr, EvalOptions{}), EvalError);
 }
+
+TEST_CASE("File fields are in scope for unscoped names, and bare patterns skip them") {
+    FakeSource src;
+    src.add(TrackKind::General, {text("Title", "Talk")});
+    src.add(TrackKind::File, {integer("Size", "5000000000", " byte"), text("Name", "talk.mkv"),
+                              text("Modified", "2024-03-01 12:00:00 UTC")});
+    CHECK(matches("Size > 4G", src));
+    CHECK(matches("File/Size > 4G", src));
+    CHECK(matches("File/Modified >= 2024-03", src));
+    CHECK_FALSE(matches("File/Modified >= 2024-04", src));
+    CHECK_FALSE(matches("'talk'", src));
+    CHECK(matches("File/Name ~ talk", src));
+}
+
+TEST_CASE("@when expands to every date-bearing field and names the real source") {
+    FakeSource a;
+    a.add(TrackKind::General, {text("Encoded_Date", "UTC 2024-03-01 12:00:00")});
+    Match m = run("@when = 2024", a);
+    CHECK(m.matched);
+    CHECK(fields(m) == std::vector<std::string>{"General/Encoded_Date: UTC 2024-03-01 12:00:00"});
+
+    FakeSource b;
+    b.add(TrackKind::General, {text("DATE", "20240121")});
+    b.add(TrackKind::File, {text("Modified", "2026-01-22 03:14:05 UTC")});
+    CHECK(matches("@when = 2024", b));
+    CHECK(matches("@when = 2026", b));
+    CHECK_FALSE(matches("@when = 2025", b));
+    CHECK(fields(run("@when >= 2024", b)) == std::vector<std::string>{
+        "File/Modified: 2026-01-22 03:14:05 UTC", "General/DATE: 20240121"});
+}
+
+TEST_CASE("@who and @name") {
+    auto src = typicalVideo();
+    CHECK(fields(run("@who ~ Engineering", src)) ==
+          std::vector<std::string>{"General/Publisher: Interesting Engineering"});
+    CHECK(fields(run("@name ~ Engines", src)) == std::vector<std::string>{
+        "General/Title: Talk about Engines", "Video/Title: Talk about Engines"});
+    CHECK_FALSE(matches("@who ~ Nobody", src));
+}
+
+TEST_CASE("aliases support exists tests and are case-insensitive") {
+    FakeSource none;
+    none.add(TrackKind::General, {text("Format", "Matroska")});
+    CHECK(matches("not @when", none));
+    CHECK_FALSE(matches("@when", none));
+    auto src = typicalVideo();
+    CHECK(matches("@WHEN = 2024", src));
+    CHECK(matches("@When", src));
+}
+
+TEST_CASE("an unknown or track-scoped alias is rejected when the evaluator is built") {
+    ExprPtr unknown = parse("@bogus = 1");
+    CHECK_THROWS_AS(Evaluator(*unknown, EvalOptions{}), EvalError);
+    ExprPtr scoped = parse("General/@when = 1");
+    CHECK_THROWS_AS(Evaluator(*scoped, EvalOptions{}), EvalError);
+}

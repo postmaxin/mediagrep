@@ -1,6 +1,8 @@
 #include "units.h"
 
+#include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 
 namespace mediagrep {
@@ -117,6 +119,16 @@ std::optional<std::string> normalizeDateValue(std::string_view value) {
     if (startsWithNoCase(value, "UTC")) value.remove_prefix(3);
     while (!value.empty() && value.front() == ' ') value.remove_prefix(1);
 
+    // Compact YYYYMMDD, as yt-dlp writes DATE. Only with a plausible month
+    // and day, so an eight-digit number is not mistaken for a date.
+    if (value.size() == 8 && std::all_of(value.begin(), value.end(), isDigit)) {
+        const int month = (value[4] - '0') * 10 + (value[5] - '0');
+        const int day = (value[6] - '0') * 10 + (value[7] - '0');
+        if (month < 1 || month > 12 || day < 1 || day > 31) return std::nullopt;
+        return std::string(value.substr(0, 4)) + "-" + std::string(value.substr(4, 2)) + "-" +
+               std::string(value.substr(6, 2)) + " 00:00:00";
+    }
+
     std::size_t pos = 0;
     if (!matchShape(value, pos, "DDDD-DD-DD")) return std::nullopt;
     std::string out(value.substr(0, 10));
@@ -133,6 +145,19 @@ std::optional<std::string> normalizeDateValue(std::string_view value) {
         }
     }
     return out + " " + time;
+}
+
+std::string formatUtcTime(std::time_t t) {
+    std::tm tm{};
+#ifdef _WIN32
+    gmtime_s(&tm, &t);
+#else
+    gmtime_r(&t, &tm);
+#endif
+    char buf[64];
+    std::snprintf(buf, sizeof buf, "%04d-%02d-%02d %02d:%02d:%02d UTC", tm.tm_year + 1900,
+                  tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    return buf;
 }
 
 std::optional<std::string> normalizeDateOperand(std::string_view text) {

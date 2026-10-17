@@ -4,6 +4,9 @@
 // where a media collection lives.
 #pragma once
 
+#include <cstdint>
+#include <ctime>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,6 +26,19 @@ bool isSymlink(const std::string& path);
 // in no particular order. Returns false and sets `error` on failure.
 bool listDirectory(const std::string& path, std::vector<std::string>& names,
                    std::string* error = nullptr);
+
+struct FileInfo {
+    std::uint64_t size = 0;
+    std::optional<std::time_t> modified;
+    std::optional<std::time_t> created;   // birth time, where the OS keeps one
+    std::optional<std::time_t> accessed;
+    unsigned mode = 0;                    // permission bits (0644); 0 if unknown
+    std::string owner;                    // empty if unknown
+    std::string group;                    // empty if unknown
+};
+
+// stat() following symlinks. nullopt if the file cannot be examined.
+std::optional<FileInfo> stat(const std::string& path);
 
 // dir + separator + name, without doubling a separator `dir` already ends
 // with. An empty `dir` yields `name` alone.
