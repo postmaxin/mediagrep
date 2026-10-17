@@ -80,6 +80,11 @@ endif()
 find_package(Threads REQUIRED)
 target_link_libraries(mediagrep_core PUBLIC Threads::Threads)
 
+# GCC 8 ships std::filesystem in a separate library.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+    target_link_libraries(mediagrep_core PUBLIC stdc++fs)
+endif()
+
 # ---------------------------------------------------------------------------
 # The command-line tool
 # ---------------------------------------------------------------------------
