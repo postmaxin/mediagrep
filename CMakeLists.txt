@@ -70,6 +70,11 @@ else()
         endif()
     endif()
     target_link_libraries(mediagrep_core PUBLIC ${CMAKE_DL_LIBS})
+    if(APPLE)
+        # MediaInfoDLL_Load() looks for the dylib next to the running bundle
+        # through CFBundle before falling back to the configured name.
+        target_link_libraries(mediagrep_core PUBLIC "-framework CoreFoundation")
+    endif()
 endif()
 
 find_package(Threads REQUIRED)
