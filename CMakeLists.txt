@@ -16,6 +16,7 @@ add_library(mediagrep_core STATIC
     src/cli.cpp
     src/eval.cpp
     src/expr.cpp
+    src/fsys.cpp
     src/mediainfo_source.cpp
     src/parser.cpp
     src/units.cpp
@@ -80,11 +81,6 @@ endif()
 find_package(Threads REQUIRED)
 target_link_libraries(mediagrep_core PUBLIC Threads::Threads)
 
-# GCC 8 ships std::filesystem in a separate library.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
-    target_link_libraries(mediagrep_core PUBLIC stdc++fs)
-endif()
-
 # ---------------------------------------------------------------------------
 # The command-line tool
 # ---------------------------------------------------------------------------
@@ -102,6 +98,7 @@ if(MEDIAGREP_BUILD_TESTS)
         tests/main.cpp
         tests/test_cli.cpp
         tests/test_eval.cpp
+        tests/test_fsys.cpp
         tests/test_mediainfo.cpp
         tests/test_options.cpp
         tests/test_parser.cpp
@@ -114,6 +111,9 @@ if(MEDIAGREP_BUILD_TESTS)
     target_compile_definitions(mediagrep_tests PRIVATE
         MEDIAGREP_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
         MEDIAGREP_BINARY="$<TARGET_FILE:mediagrep>")
+    if(MSVC)
+        target_compile_definitions(mediagrep_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+    endif()
     target_link_libraries(mediagrep_tests PRIVATE mediagrep_core)
     add_dependencies(mediagrep_tests mediagrep)
     add_test(NAME unit COMMAND mediagrep_tests)

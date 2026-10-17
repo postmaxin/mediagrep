@@ -1,7 +1,6 @@
 // MetadataSource backed by MediaInfoLib.
 #pragma once
 
-#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,7 +21,7 @@ public:
     // Reads the file's metadata. Returns false if the library could not
     // open or read it (missing file, permission denied, library missing).
     // A readable file that is not media opens fine; see isMedia().
-    bool open(const std::filesystem::path& path);
+    bool open(const std::string& utf8Path);
 
     // True when the last open() succeeded and the library recognized a
     // container or stream format.

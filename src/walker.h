@@ -1,7 +1,6 @@
-// Directory traversal and filename filtering.
+// Directory traversal and filename filtering. Paths are UTF-8 strings.
 #pragma once
 
-#include <filesystem>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -19,8 +18,8 @@ struct WalkOptions {
 // Case-sensitive. Matches the whole name.
 bool globMatch(std::string_view pattern, std::string_view name);
 
-using FileCallback = std::function<void(const std::filesystem::path&)>;
-using ErrorCallback = std::function<void(const std::filesystem::path&, const std::string& message)>;
+using FileCallback = std::function<void(const std::string& path)>;
+using ErrorCallback = std::function<void(const std::string& path, const std::string& message)>;
 
 // Visits regular files under `roots` in a deterministic order: roots in the
 // order given, directory entries sorted by name, depth first. Reported paths
@@ -28,7 +27,7 @@ using ErrorCallback = std::function<void(const std::filesystem::path&, const std
 // Roots that are files are always visited, ignoring include/exclude.
 // Problems (missing root, unreadable directory) go to onError and the walk
 // continues. Returns the number of errors.
-std::size_t walk(const std::vector<std::filesystem::path>& roots, const WalkOptions& options,
+std::size_t walk(const std::vector<std::string>& roots, const WalkOptions& options,
                  const FileCallback& onFile, const ErrorCallback& onError);
 
 }  // namespace mediagrep

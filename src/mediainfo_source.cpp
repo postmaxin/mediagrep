@@ -80,13 +80,6 @@ bool iequals(std::string_view a, std::string_view b) {
     return true;
 }
 
-String pathToString(const std::filesystem::path& path) {
-#ifdef _WIN32
-    return path.wstring();
-#else
-    return widen(path.native());
-#endif
-}
 
 }  // namespace
 
@@ -143,9 +136,9 @@ struct MediaInfoSource::Impl {
 MediaInfoSource::MediaInfoSource(double parseSpeed) : impl_(std::make_unique<Impl>(parseSpeed)) {}
 MediaInfoSource::~MediaInfoSource() = default;
 
-bool MediaInfoSource::open(const std::filesystem::path& path) {
+bool MediaInfoSource::open(const std::string& utf8Path) {
     impl_->clear();
-    if (impl_->mi.Open(pathToString(path)) == 0) return false;
+    if (impl_->mi.Open(widen(utf8Path)) == 0) return false;
     impl_->snapshot();
     impl_->mi.Close();
     const auto format = lookup(TrackKind::General, 0, "Format");

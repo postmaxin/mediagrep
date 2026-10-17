@@ -1,6 +1,5 @@
 // mediagrep: grep for media metadata.
 #include <cstdio>
-#include <filesystem>
 #include <memory>
 #include <set>
 #include <string>
@@ -20,29 +19,12 @@
 #include "walker.h"
 
 using namespace mediagrep;
-namespace fs = std::filesystem;
 
 namespace {
 
 #ifndef MEDIAGREP_VERSION
 #define MEDIAGREP_VERSION "0.0.0"
 #endif
-
-std::string displayPath(const fs::path& p) {
-#ifdef _WIN32
-    return narrow(p.wstring());
-#else
-    return p.native();
-#endif
-}
-
-fs::path toPath(const std::string& utf8) {
-#ifdef _WIN32
-    return fs::path(widen(utf8));
-#else
-    return fs::path(utf8);
-#endif
-}
 
 void warn(const std::string& message) {
     std::fputs(("mediagrep: " + message + "\n").c_str(), stderr);
@@ -54,8 +36,7 @@ void write(const std::string& s) {
 
 int dumpFields(const Options& options) {
     MediaInfoSource src(options.parseSpeed);
-    const fs::path path = toPath(*options.fieldsFile);
-    if (!src.open(path)) {
+    if (!src.open(*options.fieldsFile)) {
         warn(*options.fieldsFile + ": cannot read");
         return 2;
     }
@@ -105,7 +86,7 @@ ExprPtr buildExpression(const Options& options) {
 }
 
 struct Job {
-    fs::path path;
+    std::string path;
 };
 
 struct Result {
@@ -144,7 +125,7 @@ int run(const Options& options) {
         thread_local std::unique_ptr<MediaInfoSource> source;
         if (!source) source = std::make_unique<MediaInfoSource>(options.parseSpeed);
         Result r;
-        r.display = displayPath(job.path);
+        r.display = job.path;
         try {
             if (!source->open(job.path)) {
                 r.error = true;
@@ -177,9 +158,9 @@ int run(const Options& options) {
         write(formatFile(options, r.display, r.match));
     };
 
-    auto onError = [&](const fs::path& p, const std::string& message) {
+    auto onError = [&](const std::string& p, const std::string& message) {
         anyError = true;
-        if (!options.noMessages) warn(displayPath(p) + ": " + message);
+        if (!options.noMessages) warn(p + ": " + message);
     };
 
     if (options.output == Options::Output::Count) {
@@ -187,16 +168,14 @@ int run(const Options& options) {
             count = 0;
             {
                 OrderedPool<Job, Result> pool(jobs, work, emit);
-                walk({toPath(root)}, walkOptions, [&](const fs::path& p) { pool.submit({p}); }, onError);
+                walk({root}, walkOptions, [&](const std::string& p) { pool.submit({p}); }, onError);
                 pool.finish();
             }
             if (!options.quiet) write(root + ": " + std::to_string(count) + sep);
         }
     } else {
-        std::vector<fs::path> roots;
-        for (const std::string& root : options.paths) roots.push_back(toPath(root));
         OrderedPool<Job, Result> pool(jobs, work, emit);
-        walk(roots, walkOptions, [&](const fs::path& p) { pool.submit({p}); }, onError);
+        walk(options.paths, walkOptions, [&](const std::string& p) { pool.submit({p}); }, onError);
         pool.finish();
     }
     std::fflush(stdout);

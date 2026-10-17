@@ -17,7 +17,7 @@ TEST_CASE("two- and three-byte sequences round-trip") {
 TEST_CASE("four-byte sequences round-trip, using surrogates when wchar_t is 16-bit") {
     const std::string s = "\xF0\x9F\x8E\xAC";  // U+1F3AC clapper board
     const std::wstring w = widen(s);
-    if (sizeof(wchar_t) == 2) {
+    if constexpr (sizeof(wchar_t) == 2) {
         REQUIRE(w.size() == 2);
         CHECK(static_cast<unsigned>(w[0]) == 0xD83C);
         CHECK(static_cast<unsigned>(w[1]) == 0xDFAC);

@@ -1,6 +1,5 @@
 // Integration tests against MediaInfoLib and the committed fixtures.
 #include <cstdlib>
-#include <filesystem>
 
 #include "doctest.h"
 #include "eval.h"
@@ -11,8 +10,8 @@ using namespace mediagrep;
 
 namespace {
 
-std::filesystem::path fixture(const char* name) {
-    return std::filesystem::path(MEDIAGREP_FIXTURES_DIR) / name;
+std::string fixture(const char* name) {
+    return std::string(MEDIAGREP_FIXTURES_DIR) + "/" + name;
 }
 
 std::string value(const MediaInfoSource& src, TrackKind kind, std::size_t index, const char* name) {

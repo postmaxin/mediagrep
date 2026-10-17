@@ -1,10 +1,11 @@
-#include <fstream>
+#include <algorithm>
 
 #include "doctest.h"
+#include "tmp_tree.h"
 #include "walker.h"
 
 using namespace mediagrep;
-namespace fs = std::filesystem;
+using mediagrep::test::TempTree;
 
 namespace {
 
@@ -12,40 +13,40 @@ namespace {
 //   root/a/1.mkv  root/a/b/2.mp4  root/a/b/3.txt  root/a/c/ (empty)  root/a/z.mkv
 //   root/top.mp3
 struct Tree {
-    fs::path root;
+    TempTree t{"mediagrep-walk"};
     Tree() {
-        root = fs::temp_directory_path() / fs::path("mediagrep-walk-" + std::to_string(counter()++));
-        fs::remove_all(root);
-        fs::create_directories(root / "a" / "b");
-        fs::create_directories(root / "a" / "c");
-        touch(root / "a" / "1.mkv");
-        touch(root / "a" / "b" / "2.mp4");
-        touch(root / "a" / "b" / "3.txt");
-        touch(root / "a" / "z.mkv");
-        touch(root / "top.mp3");
+        t.file("a/1.mkv");
+        t.file("a/b/2.mp4");
+        t.file("a/b/3.txt");
+        t.dir("a/c");
+        t.file("a/z.mkv");
+        t.file("top.mp3");
     }
-    ~Tree() { fs::remove_all(root); }
-    static void touch(const fs::path& p) { std::ofstream(p) << "x"; }
-    static int& counter() { static int c = 0; return c; }
+    std::string path(const std::string& rel) const { return t.path(rel); }
 };
 
-std::vector<std::string> files(const std::vector<fs::path>& roots, const WalkOptions& opts = {},
+std::string slashes(std::string s) {
+    std::replace(s.begin(), s.end(), '\\', '/');
+    return s;
+}
+
+std::vector<std::string> files(const std::vector<std::string>& roots, const WalkOptions& opts = {},
                                std::vector<std::string>* errors = nullptr) {
     std::vector<std::string> out;
     walk(roots, opts,
-         [&](const fs::path& p) { out.push_back(p.generic_string()); },
-         [&](const fs::path& p, const std::string& msg) {
-             if (errors) errors->push_back(p.generic_string() + ": " + msg);
+         [&](const std::string& p) { out.push_back(slashes(p)); },
+         [&](const std::string& p, const std::string& msg) {
+             if (errors) errors->push_back(slashes(p) + ": " + msg);
          });
     return out;
 }
 
 std::string rel(const Tree& t, const std::string& p) {
-    const std::string prefix = t.root.generic_string() + "/";
+    const std::string prefix = slashes(t.t.root) + "/";
     return p.rfind(prefix, 0) == 0 ? p.substr(prefix.size()) : p;
 }
 
-std::vector<std::string> relFiles(const Tree& t, const std::vector<fs::path>& roots,
+std::vector<std::string> relFiles(const Tree& t, const std::vector<std::string>& roots,
                                   const WalkOptions& opts = {}) {
     std::vector<std::string> out;
     for (const auto& p : files(roots, opts)) out.push_back(rel(t, p));
@@ -86,45 +87,45 @@ TEST_CASE("glob is case-sensitive") {
 
 TEST_CASE("walk visits files depth-first in name order") {
     Tree t;
-    CHECK(relFiles(t, {t.root}) == std::vector<std::string>{
+    CHECK(relFiles(t, {t.t.root}) == std::vector<std::string>{
         "a/1.mkv", "a/b/2.mp4", "a/b/3.txt", "a/z.mkv", "top.mp3"});
 }
 
 TEST_CASE("walk reports paths as the root given plus the relative part") {
     Tree t;
-    auto out = files({t.root / "a"});
+    auto out = files({t.path("a")});
     REQUIRE(out.size() == 4);
-    CHECK(out[0] == (t.root / "a" / "1.mkv").generic_string());
+    CHECK(out[0] == slashes(t.path("a/1.mkv")));
 }
 
 TEST_CASE("walk honours include and exclude globs on the file name") {
     Tree t;
     WalkOptions inc;
     inc.include = {"*.mkv"};
-    CHECK(relFiles(t, {t.root}, inc) == std::vector<std::string>{"a/1.mkv", "a/z.mkv"});
+    CHECK(relFiles(t, {t.t.root}, inc) == std::vector<std::string>{"a/1.mkv", "a/z.mkv"});
 
     WalkOptions exc;
     exc.exclude = {"*.txt", "*.mp3"};
-    CHECK(relFiles(t, {t.root}, exc) == std::vector<std::string>{"a/1.mkv", "a/b/2.mp4", "a/z.mkv"});
+    CHECK(relFiles(t, {t.t.root}, exc) == std::vector<std::string>{"a/1.mkv", "a/b/2.mp4", "a/z.mkv"});
 
     WalkOptions both;
     both.include = {"*.mkv", "*.mp4"};
     both.exclude = {"1.*"};
-    CHECK(relFiles(t, {t.root}, both) == std::vector<std::string>{"a/b/2.mp4", "a/z.mkv"});
+    CHECK(relFiles(t, {t.t.root}, both) == std::vector<std::string>{"a/b/2.mp4", "a/z.mkv"});
 }
 
 TEST_CASE("roots are visited in argument order, and file roots bypass filters") {
     Tree t;
     WalkOptions inc;
     inc.include = {"*.mkv"};
-    CHECK(relFiles(t, {t.root / "top.mp3", t.root / "a" / "b", t.root / "a" / "1.mkv"}, inc) ==
+    CHECK(relFiles(t, {t.path("top.mp3"), t.path("a/b"), t.path("a/1.mkv")}, inc) ==
           std::vector<std::string>{"top.mp3", "a/1.mkv"});
 }
 
 TEST_CASE("a missing root is an error and the walk continues") {
     Tree t;
     std::vector<std::string> errors;
-    auto out = files({t.root / "nope", t.root / "top.mp3"}, {}, &errors);
+    auto out = files({t.path("nope"), t.path("top.mp3")}, {}, &errors);
     REQUIRE(errors.size() == 1);
     CHECK(errors[0].find("nope") != std::string::npos);
     REQUIRE(out.size() == 1);
@@ -134,6 +135,6 @@ TEST_CASE("a missing root is an error and the walk continues") {
 TEST_CASE("walk returns the error count") {
     Tree t;
     WalkOptions opts;
-    CHECK(walk({t.root / "nope", t.root / "also-nope"}, opts, [](const fs::path&) {},
-               [](const fs::path&, const std::string&) {}) == 2);
+    CHECK(walk({t.path("nope"), t.path("also-nope")}, opts, [](const std::string&) {},
+               [](const std::string&, const std::string&) {}) == 2);
 }

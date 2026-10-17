@@ -2,13 +2,10 @@
 
 #include <algorithm>
 #include <optional>
-#include <system_error>
 
-#include "utf.h"
+#include "fsys.h"
 
 namespace mediagrep {
-
-namespace fs = std::filesystem;
 
 namespace {
 
@@ -38,22 +35,13 @@ std::optional<bool> matchClass(std::string_view pattern, std::size_t start, char
     return matched != negate;
 }
 
-std::string fileName(const fs::path& p) {
-#ifdef _WIN32
-    return narrow(p.filename().wstring());
-#else
-    return p.filename().native();
-#endif
-}
-
 struct Walker {
     const WalkOptions& options;
     const FileCallback& onFile;
     const ErrorCallback& onError;
     std::size_t errors = 0;
 
-    bool passesFilters(const fs::path& p) const {
-        const std::string name = fileName(p);
+    bool passesFilters(const std::string& name) const {
         if (!options.include.empty()) {
             const bool any = std::any_of(options.include.begin(), options.include.end(),
                                          [&](const std::string& g) { return globMatch(g, name); });
@@ -63,40 +51,37 @@ struct Walker {
                             [&](const std::string& g) { return globMatch(g, name); });
     }
 
-    void fail(const fs::path& p, const std::string& message) {
+    void fail(const std::string& path, const std::string& message) {
         ++errors;
-        onError(p, message);
+        onError(path, message);
     }
 
-    void root(const fs::path& p) {
-        std::error_code ec;
-        const fs::file_status st = fs::status(p, ec);
-        if (ec) { fail(p, ec.message()); return; }
-        if (!fs::exists(st)) { fail(p, "No such file or directory"); return; }
-        if (fs::is_directory(st)) directory(p);
-        else if (fs::is_regular_file(st)) onFile(p);
-    }
-
-    void directory(const fs::path& dir) {
-        std::error_code ec;
-        fs::directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec);
-        if (ec) { fail(dir, ec.message()); return; }
-
-        std::vector<fs::directory_entry> entries;
-        for (; it != fs::directory_iterator(); it.increment(ec)) {
-            if (ec) { fail(dir, ec.message()); return; }
-            entries.push_back(*it);
+    void root(const std::string& path) {
+        std::string error;
+        const fsys::FileType type = fsys::status(path, &error);
+        if (!error.empty()) { fail(path, error); return; }
+        switch (type) {
+            case fsys::FileType::Missing: fail(path, "No such file or directory"); break;
+            case fsys::FileType::Directory: directory(path); break;
+            case fsys::FileType::Regular: onFile(path); break;
+            case fsys::FileType::Other: break;
         }
-        std::sort(entries.begin(), entries.end(), [](const fs::directory_entry& a, const fs::directory_entry& b) {
-            return a.path().filename().native() < b.path().filename().native();
-        });
+    }
 
-        for (const auto& e : entries) {
-            if (!options.followSymlinks && e.is_symlink(ec)) continue;
-            const fs::file_status st = e.status(ec);
-            if (ec) { fail(e.path(), ec.message()); continue; }
-            if (fs::is_directory(st)) directory(e.path());
-            else if (fs::is_regular_file(st) && passesFilters(e.path())) onFile(e.path());
+    void directory(const std::string& dir) {
+        std::vector<std::string> names;
+        std::string error;
+        if (!fsys::listDirectory(dir, names, &error)) { fail(dir, error); return; }
+        std::sort(names.begin(), names.end());
+
+        for (const std::string& name : names) {
+            const std::string child = fsys::join(dir, name);
+            if (!options.followSymlinks && fsys::isSymlink(child)) continue;
+            error.clear();
+            const fsys::FileType type = fsys::status(child, &error);
+            if (!error.empty()) { fail(child, error); continue; }
+            if (type == fsys::FileType::Directory) directory(child);
+            else if (type == fsys::FileType::Regular && passesFilters(name)) onFile(child);
         }
     }
 };
@@ -132,7 +117,7 @@ bool globMatch(std::string_view pattern, std::string_view name) {
     return pi == pattern.size();
 }
 
-std::size_t walk(const std::vector<fs::path>& roots, const WalkOptions& options,
+std::size_t walk(const std::vector<std::string>& roots, const WalkOptions& options,
                  const FileCallback& onFile, const ErrorCallback& onError) {
     Walker w{options, onFile, onError};
     for (const auto& r : roots) w.root(r);

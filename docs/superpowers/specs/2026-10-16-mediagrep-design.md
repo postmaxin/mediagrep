@@ -128,7 +128,10 @@ fields through `Count_Get` plus `Get` by index with `Info_Name`.
 
 ### Walker
 
-Expands the path arguments with `std::filesystem`. Directories recurse
+Expands the path arguments through a small file-system layer (`fsys`)
+with POSIX and Win32 backends; `std::filesystem` is deliberately not
+used, because toolchains such as Entware's GCC 8 on NAS boxes ship no
+implementation of it. Directories recurse
 (`-r`, the default); `-R` also follows symlinks. `--include` and
 `--exclude` globs filter by filename. Files are numbered in discovery
 order, dispatched to a queue served by `-j` workers (default: the
@@ -324,6 +327,7 @@ src/
   eval.{h,cpp}    evaluator, MetadataSource interface
   mediainfo_source.{h,cpp}
   walker.{h,cpp}
+  fsys.{h,cpp}    directory listing and stat on UTF-8 paths, POSIX/Win32
   units.{h,cpp}   unit and date parsing
   utf.{h,cpp}     UTF-8 <-> wchar_t shim (UTF-16 on Windows, UTF-32 elsewhere)
   pool.h          OrderedPool: parallel workers, in-order results
