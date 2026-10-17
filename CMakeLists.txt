@@ -36,12 +36,39 @@ else()
 endif()
 
 if(MEDIAGREP_LINK_STATIC)
+    # Only the link line is taken from pkg-config. The headers come from the
+    # vendored MediaInfoDLL_Static.h, and some distributions' libmediainfo.pc
+    # lists include directories (glib) that the dev package does not provide.
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(MEDIAINFO REQUIRED IMPORTED_TARGET libmediainfo)
+    pkg_check_modules(MEDIAINFO REQUIRED libmediainfo)
     target_compile_definitions(mediagrep_core PRIVATE MEDIAGREP_LINK_STATIC)
-    target_link_libraries(mediagrep_core PUBLIC PkgConfig::MEDIAINFO)
+    target_link_directories(mediagrep_core PUBLIC ${MEDIAINFO_LIBRARY_DIRS})
+    target_link_libraries(mediagrep_core PUBLIC ${MEDIAINFO_LIBRARIES})
 else()
-    # MediaInfoDLL.h loads the library with dlopen/LoadLibrary at runtime.
+    # MediaInfoDLL.h loads the library with dlopen/LoadLibrary at runtime,
+    # by soname (libmediainfo.so.0, libmediainfo.0.dylib, MediaInfo.dll).
+    # MEDIAGREP_MEDIAINFO_LIBRARY overrides that with a path, for installs
+    # outside the loader's default search path. On macOS, Homebrew's
+    # /opt/homebrew/lib is such a place, so look there automatically.
+    set(MEDIAGREP_MEDIAINFO_LIBRARY "" CACHE STRING
+        "Path or soname of the MediaInfoLib shared library to load at runtime")
+    if(APPLE AND NOT MEDIAGREP_MEDIAINFO_LIBRARY)
+        find_library(_mediagrep_mi_lib NAMES mediainfo.0 mediainfo
+                     PATHS /opt/homebrew/lib /usr/local/lib NO_DEFAULT_PATH)
+        if(_mediagrep_mi_lib)
+            set(MEDIAGREP_MEDIAINFO_LIBRARY "${_mediagrep_mi_lib}")
+        endif()
+    endif()
+    if(MEDIAGREP_MEDIAINFO_LIBRARY)
+        message(STATUS "MediaInfoLib will be loaded from ${MEDIAGREP_MEDIAINFO_LIBRARY}")
+        if(WIN32)
+            target_compile_definitions(mediagrep_core PRIVATE
+                "MEDIAINFODLL_NAME=L\"${MEDIAGREP_MEDIAINFO_LIBRARY}\"")
+        else()
+            target_compile_definitions(mediagrep_core PRIVATE
+                "MEDIAINFODLL_NAME=\"${MEDIAGREP_MEDIAINFO_LIBRARY}\"")
+        endif()
+    endif()
     target_link_libraries(mediagrep_core PUBLIC ${CMAKE_DL_LIBS})
 endif()
 

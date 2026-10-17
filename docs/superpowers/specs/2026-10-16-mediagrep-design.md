@@ -1,7 +1,7 @@
 # mediagrep design
 
 Date: 2026-10-16
-Status: approved for planning
+Status: implemented (v1); this document is the design of record
 
 ## Purpose
 
@@ -180,10 +180,16 @@ than `or`. Track and field names are case-insensitive. `INDEX` is
 - **Typed comparison.** The field's declared type picks the comparison:
   - Integer, Float: numeric. The value is parsed as a number with an
     optional unit (below). If the value does not parse as a number, the
-    comparison is false and a warning is printed once on stderr.
-  - Date: chronological. Values accept `YYYY`, `YYYY-MM-DD`, or
-    `YYYY-MM-DD HH:MM:SS`. MediaInfo dates are parsed from their raw
-    form (`UTC 2024-03-01 12:00:00`).
+    comparison is false and a warning is printed once on stderr. A
+    Text-typed field is also treated as numeric when the library
+    attaches a unit of measure to it and its value is a number, because
+    MediaInfoLib declares some numeric parameters (FileSize) as text.
+  - Date: chronological, at the operand's granularity, by comparing a
+    normalized `YYYY-MM-DD HH:MM:SS` form as a prefix. Operands accept
+    `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM[:SS]`. MediaInfo
+    declares its dates as text, so this applies whenever the field's
+    value is date-shaped (`UTC 2024-03-01 12:00:00`) and the operand is
+    too; otherwise the comparison is plain text.
   - Text: `=` and `!=` are exact matches. `<` and `>` compare
     lexically. `~` and `!~` are unanchored regex searches.
   - Binary: never matches; skipped by bare patterns.
@@ -199,14 +205,15 @@ than `or`. Track and field names are case-insensitive. `INDEX` is
   `!~`, and bare patterns, in `-e` expressions and the positional
   pattern alike. Field and track names are case-insensitive regardless.
 - **Bare pattern.** A STRING atom, or the positional `PATTERN`, is a
-  regex searched against every Text-typed field value in every track.
-  Matches record which field matched, for the default output.
+  regex searched against every non-binary field value in every track,
+  numeric fields included. Matches record which field matched, for the
+  default output.
 - **Multiple `-e`.** ORed, as in grep. `-v` inverts the whole result.
 
 ### Field discovery
 
-`mediagrep --fields FILE` prints one `Track[/N]/Field = value` line per
-field of one file and exits. This is the answer to "what is the field
+`mediagrep --fields FILE` prints one `Track[N]/Field: value` line per
+field of one file and exits, in the same form as the default output. This is the answer to "what is the field
 called".
 
 ## Command line
@@ -217,8 +224,9 @@ mediagrep [OPTIONS] PATTERN PATH...
 mediagrep --fields FILE
 ```
 
-The second form is grep's: when no `-e` is given, the first positional
-argument is a bare pattern, that is a regex searched across all text
+With no `PATH`, the current directory is searched, as GNU grep does
+with `-r`. The second form is grep's: when no `-e` is given, the first
+positional argument is a bare pattern, that is a regex searched across all text
 fields, exactly as if it were a quoted STRING atom. It is not parsed as
 an expression, so regex metacharacters such as parentheses never collide
 with the grammar. Field comparisons and boolean operators require `-e`.
@@ -259,7 +267,9 @@ videos/talk.mkv: Video/Height: 720
 ```
 
 Track names carry a 1-based index when the file has more than one
-track of that kind, as in `Audio[2]/Language`. A file that matches
+track of that kind, as in `Audio[2]/Language`. Field names are printed
+as the library spells them; Matroska tags it does not map keep their
+uppercase names (`General/PUBLISHER`). A file that matches
 without producing any triples, for instance via `not Audio/Language =
 ja`, prints its path alone. `-v` and `-L` print paths alone, since a
 non-match has no matching field.
@@ -275,8 +285,8 @@ walker, like grep.
 - A file the library cannot open or read: warning on stderr naming the
   file, processing continues, final exit status 2. `-s` hides the
   warning but not the status.
-- A file the library opens but reports no format for (sidecar, image
-  thumbnail, text): skipped silently.
+- A file the library opens but reports no format for (sidecar, text):
+  skipped silently.
 - Expression parse error: message with byte offset and a caret line,
   exit 2 before any file is read.
 - Unknown field name: not an error (fields vary by format). The
@@ -315,12 +325,14 @@ src/
   mediainfo_source.{h,cpp}
   walker.{h,cpp}
   units.{h,cpp}   unit and date parsing
-  utf.{h,cpp}     UTF-8/UTF-16 shim (Windows)
+  utf.{h,cpp}     UTF-8 <-> wchar_t shim (UTF-16 on Windows, UTF-32 elsewhere)
+  pool.h          OrderedPool: parallel workers, in-order results
+  cli.{h,cpp}     option parsing and output formatting
 tests/
   doctest.h       vendored
   test_parser.cpp
   test_eval.cpp
-  test_cli.cmake
+  test_cli.cpp    runs the built binary against the fixtures
   fixtures/
 third_party/MediaInfoDLL/   vendored MediaInfoDLL.h, MediaInfoDLL_Static.h (BSD)
 docs/

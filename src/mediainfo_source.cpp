@@ -10,10 +10,20 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+// The vendored headers define a few function pointers they never use and
+// pass NULL for size_t parameters.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wconversion-null"
+#endif
 #ifdef MEDIAGREP_LINK_STATIC
 #include "MediaInfoDLL_Static.h"
 #else
 #include "MediaInfoDLL.h"
+#endif
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
 #endif
 
 #include "utf.h"
