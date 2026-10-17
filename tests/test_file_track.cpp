@@ -95,3 +95,24 @@ TEST_CASE("a file that cannot be examined has no File track") {
     CHECK(src.trackCount(TrackKind::File) == 0);
     CHECK_FALSE(src.lookup(TrackKind::File, 0, "Name"));
 }
+
+TEST_CASE("the Path track comes from the file name, even when stat fails") {
+    FakeSource inner;
+    FileTrackSource src(inner, fsys::join(fsys::join(kFixtures, "Season 2"),
+                                          "Show - S02E05 - Title 2024-03-01 [WcHWQnoE95w].mkv"));
+    CHECK(src.trackCount(TrackKind::File) == 0);
+    REQUIRE(src.trackCount(TrackKind::Path) == 1);
+    CHECK(src.lookup(TrackKind::Path, 0, "when")->value == "2024-03-01");
+    CHECK(src.lookup(TrackKind::Path, 0, "Season")->value == "2");
+    CHECK(src.lookup(TrackKind::Path, 0, "Episode")->value == "5");
+    CHECK(src.lookup(TrackKind::Path, 0, "Id")->value == "WcHWQnoE95w");
+    int count = 0;
+    src.forEachField(TrackKind::Path, 0, [&](const FieldValue&) { ++count; });
+    CHECK(count == 4);
+}
+
+TEST_CASE("a name with nothing recognizable has no Path track") {
+    FakeSource inner;
+    FileTrackSource src(inner, fixture("talk.mkv"));
+    CHECK(src.trackCount(TrackKind::Path) == 0);
+}

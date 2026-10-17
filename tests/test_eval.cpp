@@ -335,3 +335,14 @@ TEST_CASE("an unknown or track-scoped alias is rejected when the evaluator is bu
     ExprPtr scoped = parse("General/@when = 1");
     CHECK_THROWS_AS(Evaluator(*scoped, EvalOptions{}), EvalError);
 }
+
+TEST_CASE("@when includes dates recognized in the file name, and bare patterns skip the Path track") {
+    FakeSource src;
+    src.add(TrackKind::General, {text("Title", "Recap")});
+    src.add(TrackKind::Path, {text("When", "2019"), integer("Season", "2"), text("Id", "WcHWQnoE95w")});
+    CHECK(fields(run("@when = 2019", src)) == std::vector<std::string>{"Path/When: 2019"});
+    CHECK(matches("Path/Season = 2", src));
+    CHECK(matches("Season >= 2", src));
+    CHECK_FALSE(matches("'WcHWQnoE95w'", src));
+    CHECK(matches("Path/Id = WcHWQnoE95w", src));
+}

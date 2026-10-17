@@ -12,7 +12,7 @@ struct TrackName {
     std::string_view name;
 };
 
-constexpr std::array<TrackName, 8> kTrackNames{{
+constexpr std::array<TrackName, 9> kTrackNames{{
     {TrackKind::General, "General"},
     {TrackKind::Video, "Video"},
     {TrackKind::Audio, "Audio"},
@@ -21,6 +21,7 @@ constexpr std::array<TrackName, 8> kTrackNames{{
     {TrackKind::Menu, "Menu"},
     {TrackKind::Other, "Other"},
     {TrackKind::File, "File"},
+    {TrackKind::Path, "Path"},
 }};
 
 bool iequals(std::string_view a, std::string_view b) {

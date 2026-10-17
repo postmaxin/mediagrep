@@ -226,6 +226,17 @@ mediagrep fills from `stat()`: `Name`, `Directory`, `Extension`, `Size`
 listed by `--fields`, and is skipped by bare patterns like the other
 path-derived fields.
 
+A `Path` track holds what recognizers read from the file name. Names
+follow conventions nobody fully controls and a tree mixes several, so
+only unambiguous forms are claimed: `When` from `YYYY-MM-DD` (with `-`,
+`_` or `.`), compact `YYYYMMDD` with a plausible month and day, `(YYYY)`,
+or a delimited year 1900..2099, a full date winning over a bare year;
+`Season` and `Episode` from `S01E02` or `1x02`, the season also from a
+`Season N` or `SNN` parent directory; `Id` from the eleven-character
+`[id]` yt-dlp appends. "Delimited" means bounded by non-alphanumerics,
+so `1080p` and the inside of an id never count. Who-versus-title is not
+guessed. Both File and Path are skipped by bare patterns.
+
 Aliases are query-side names behind an `@` sigil, so they can never
 collide with a library parameter. An unscoped comparison or exists test
 on one expands to an OR over concrete fields, and the output names the
@@ -233,7 +244,7 @@ field that actually matched:
 
 | Alias | Expands to |
 |---|---|
-| `@when` | File/Modified, File/Created, Encoded_Date, Tagged_Date, Recorded_Date, Released_Date, Original/Released_Date, Mastered_Date, DATE |
+| `@when` | File/Modified, File/Created, Encoded_Date, Tagged_Date, Recorded_Date, Released_Date, Original/Released_Date, Mastered_Date, DATE, Path/When |
 | `@who` | Performer, Artist, Publisher, Director, Composer, Author, Channel |
 | `@name` | File/Name, Title, Movie, Track, Album |
 
@@ -356,7 +367,8 @@ src/
   mediainfo_source.{h,cpp}
   walker.{h,cpp}
   fsys.{h,cpp}    directory listing and stat on UTF-8 paths, POSIX/Win32
-  file_track.{h,cpp}  the File track (stat info) layered on a MetadataSource
+  file_track.{h,cpp}  the File and Path tracks layered on a MetadataSource
+  path_track.{h,cpp}  file-name recognizers: dates, SxxEyy, yt-dlp id
   units.{h,cpp}   unit and date parsing
   utf.{h,cpp}     UTF-8 <-> wchar_t shim (UTF-16 on Windows, UTF-32 elsewhere)
   pool.h          OrderedPool: parallel workers, in-order results

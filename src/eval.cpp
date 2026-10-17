@@ -20,10 +20,13 @@ std::string MatchedField::location() const {
 
 namespace {
 
-constexpr std::array<TrackKind, 8> kAllKinds{
-    TrackKind::General, TrackKind::Video, TrackKind::Audio, TrackKind::Text,
-    TrackKind::Image,   TrackKind::Menu,  TrackKind::Other, TrackKind::File,
+constexpr std::array<TrackKind, 9> kAllKinds{
+    TrackKind::General, TrackKind::Video, TrackKind::Audio, TrackKind::Text, TrackKind::Image,
+    TrackKind::Menu,    TrackKind::Other, TrackKind::File,  TrackKind::Path,
 };
+
+// Tracks mediagrep derives from the path, which bare patterns skip.
+bool isPathTrack(TrackKind kind) { return kind == TrackKind::File || kind == TrackKind::Path; }
 
 std::string lowered(std::string_view s) {
     std::string out(s);
@@ -81,7 +84,7 @@ struct Alias {
 const std::vector<Alias>& aliases() {
     static const std::vector<Alias> table{
         {"when", {"File/Modified", "File/Created", "Encoded_Date", "Tagged_Date", "Recorded_Date",
-                  "Released_Date", "Original/Released_Date", "Mastered_Date", "DATE"}},
+                  "Released_Date", "Original/Released_Date", "Mastered_Date", "DATE", "Path/When"}},
         {"who", {"Performer", "Artist", "Publisher", "Director", "Composer", "Author", "Channel"}},
         {"name", {"File/Name", "Title", "Movie", "Track", "Album"}},
     };
@@ -255,7 +258,7 @@ struct Evaluator::Impl {
             case Expr::Kind::Pattern: {
                 const std::regex& re = regexes.at(&e);
                 for (TrackKind kind : kAllKinds) {
-                    if (kind == TrackKind::File) continue;  // path-derived, like below
+                    if (isPathTrack(kind)) continue;
                     const std::size_t n = src.trackCount(kind);
                     for (std::size_t i = 0; i < n; ++i) {
                         src.forEachField(kind, i, [&](const FieldValue& fv) {

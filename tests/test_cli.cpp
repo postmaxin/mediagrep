@@ -191,3 +191,15 @@ TEST_CASE("cli: aliases expand and report the concrete field") {
     CHECK(bad.status == 2);
     CHECK(bad.out.find("unknown alias") != std::string::npos);
 }
+
+TEST_CASE("cli: the Path track is recognized from the file name") {
+    Run r = run("-e \"Path/When = 2019\" ../unicode");
+    CHECK(r.status == 0);
+    CHECK(r.out == "../unicode/Quiet Song - S01E02 - 2019-05-04 [dQw4w9WgXcQ].mp3: Path/When: 2019-05-04\n");
+    CHECK(run("-l -e \"@when = 2019\" ../unicode").out ==
+          "../unicode/Quiet Song - S01E02 - 2019-05-04 [dQw4w9WgXcQ].mp3\n");
+    Run f = run("--fields \"../unicode/Quiet Song - S01E02 - 2019-05-04 [dQw4w9WgXcQ].mp3\"");
+    CHECK(f.out.find("Path/Season: 1\n") != std::string::npos);
+    CHECK(f.out.find("Path/Episode: 2\n") != std::string::npos);
+    CHECK(f.out.find("Path/Id: dQw4w9WgXcQ\n") != std::string::npos);
+}

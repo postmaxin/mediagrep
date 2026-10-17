@@ -20,6 +20,7 @@ add_library(mediagrep_core STATIC
     src/fsys.cpp
     src/mediainfo_source.cpp
     src/parser.cpp
+    src/path_track.cpp
     src/units.cpp
     src/utf.cpp
     src/walker.cpp
@@ -104,6 +105,7 @@ if(MEDIAGREP_BUILD_TESTS)
         tests/test_mediainfo.cpp
         tests/test_options.cpp
         tests/test_parser.cpp
+        tests/test_path.cpp
         tests/test_pool.cpp
         tests/test_units.cpp
         tests/test_utf.cpp

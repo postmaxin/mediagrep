@@ -64,13 +64,16 @@ MediaInfoDLL::stream_t toStream(TrackKind kind) {
         case TrackKind::Menu: return MediaInfoDLL::Stream_Menu;
         case TrackKind::Other: return MediaInfoDLL::Stream_Other;
         case TrackKind::Any:
-        case TrackKind::File: break;
+        case TrackKind::File:
+        case TrackKind::Path: break;
     }
     return MediaInfoDLL::Stream_General;
 }
 
 // Only MediaInfoLib's own stream kinds have a slot in the cache.
-bool isLibraryKind(TrackKind kind) { return kind != TrackKind::Any && kind != TrackKind::File; }
+bool isLibraryKind(TrackKind kind) {
+    return kind != TrackKind::Any && kind != TrackKind::File && kind != TrackKind::Path;
+}
 
 constexpr std::array<TrackKind, 7> kKinds{
     TrackKind::General, TrackKind::Video, TrackKind::Audio, TrackKind::Text,

@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "fsys.h"
+#include "path_track.h"
 #include "units.h"
 
 namespace mediagrep {
@@ -38,21 +39,23 @@ std::string directoryOf(const std::string& path, const std::string& name) {
 }  // namespace
 
 FileTrackSource::FileTrackSource(const MetadataSource& inner, const std::string& path) : inner_(inner) {
+    const std::string name = fsys::fileName(path);
+    const std::string directory = directoryOf(path, name);
+    path_ = recognizePath(name, fsys::fileName(directory));
+
     const std::optional<fsys::FileInfo> info = fsys::stat(path);
     if (!info) return;
-    present_ = true;
+    filePresent_ = true;
 
     auto text = [&](const char* field, std::string value) {
-        if (!value.empty()) fields_.push_back({field, std::move(value), ValueType::Text, ""});
+        if (!value.empty()) file_.push_back({field, std::move(value), ValueType::Text, ""});
     };
-
-    const std::string name = fsys::fileName(path);
     text("Name", name);
-    text("Directory", directoryOf(path, name));
+    text("Directory", directory);
     const std::size_t dot = name.find_last_of('.');
     if (dot != std::string::npos && dot != 0 && dot + 1 < name.size()) text("Extension", name.substr(dot + 1));
 
-    fields_.push_back({"Size", std::to_string(info->size), ValueType::Integer, " byte"});
+    file_.push_back({"Size", std::to_string(info->size), ValueType::Integer, " byte"});
     if (info->modified) text("Modified", formatUtcTime(*info->modified));
     if (info->created) text("Created", formatUtcTime(*info->created));
     if (info->accessed) text("Accessed", formatUtcTime(*info->accessed));
@@ -65,25 +68,33 @@ FileTrackSource::FileTrackSource(const MetadataSource& inner, const std::string&
     text("Group", info->group);
 }
 
+const std::vector<FieldValue>* FileTrackSource::own(TrackKind kind) const {
+    if (kind == TrackKind::File) return filePresent_ ? &file_ : nullptr;
+    if (kind == TrackKind::Path) return path_.empty() ? nullptr : &path_;
+    return nullptr;
+}
+
 std::size_t FileTrackSource::trackCount(TrackKind kind) const {
-    if (kind != TrackKind::File) return inner_.trackCount(kind);
-    return present_ ? 1 : 0;
+    if (kind != TrackKind::File && kind != TrackKind::Path) return inner_.trackCount(kind);
+    return own(kind) ? 1 : 0;
 }
 
 std::optional<FieldValue> FileTrackSource::lookup(TrackKind kind, std::size_t index,
                                                   std::string_view name) const {
-    if (kind != TrackKind::File) return inner_.lookup(kind, index, name);
-    if (!present_ || index != 0) return std::nullopt;
-    for (const auto& f : fields_)
+    if (kind != TrackKind::File && kind != TrackKind::Path) return inner_.lookup(kind, index, name);
+    const auto* fields = own(kind);
+    if (!fields || index != 0) return std::nullopt;
+    for (const auto& f : *fields)
         if (iequals(f.name, name)) return f;
     return std::nullopt;
 }
 
 void FileTrackSource::forEachField(TrackKind kind, std::size_t index,
                                    const std::function<void(const FieldValue&)>& fn) const {
-    if (kind != TrackKind::File) { inner_.forEachField(kind, index, fn); return; }
-    if (!present_ || index != 0) return;
-    for (const auto& f : fields_) fn(f);
+    if (kind != TrackKind::File && kind != TrackKind::Path) { inner_.forEachField(kind, index, fn); return; }
+    const auto* fields = own(kind);
+    if (!fields || index != 0) return;
+    for (const auto& f : *fields) fn(f);
 }
 
 }  // namespace mediagrep

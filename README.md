@@ -162,6 +162,22 @@ mediagrep -l -e 'File/Size > 4G' .
 mediagrep -l -e 'File/Modified >= 2026-01 and not Audio/Language' .
 ```
 
+### The Path track
+
+File names encode things by convention, and a collection usually mixes
+several conventions, so mediagrep recognizes only what is unambiguous
+wherever it appears and puts it in a `Path` track:
+
+| Field | Recognized from |
+|---|---|
+| `Path/When` | `2024-03-01` (also with `_` or `.`), `20240301` with a plausible month and day, `(2019)`, or a delimited year 1900 to 2099. A full date wins over a bare year. |
+| `Path/Season`, `Path/Episode` | `S01E02` or `1x02`; the season also from a `Season 2` or `S02` parent directory |
+| `Path/Id` | the eleven-character `[id]` yt-dlp appends |
+
+Delimited means `1080p`, `2160p` and the inside of an id never count.
+Who-versus-title is deliberately not guessed: `Artist - Title` and
+`Title - Subtitle` look the same.
+
 ### Aliases
 
 A few `@names` stand for "any field that carries this kind of
@@ -171,7 +187,7 @@ namespace.
 
 | Alias | Looks in |
 |---|---|
-| `@when` | File/Modified, File/Created, Encoded_Date, Tagged_Date, Recorded_Date, Released_Date, Original/Released_Date, Mastered_Date, DATE |
+| `@when` | File/Modified, File/Created, Encoded_Date, Tagged_Date, Recorded_Date, Released_Date, Original/Released_Date, Mastered_Date, DATE, Path/When |
 | `@who` | Performer, Artist, Publisher, Director, Composer, Author, Channel |
 | `@name` | File/Name, Title, Movie, Track, Album |
 

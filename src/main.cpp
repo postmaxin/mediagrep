@@ -48,7 +48,8 @@ int dumpFields(const Options& options) {
     const char sep = options.nullSeparated ? '\0' : '\n';
     const FileTrackSource all(src, *options.fieldsFile);
     for (TrackKind kind : {TrackKind::General, TrackKind::Video, TrackKind::Audio, TrackKind::Text,
-                           TrackKind::Image, TrackKind::Menu, TrackKind::Other, TrackKind::File}) {
+                           TrackKind::Image, TrackKind::Menu, TrackKind::Other, TrackKind::File,
+                           TrackKind::Path}) {
         const std::size_t n = all.trackCount(kind);
         for (std::size_t i = 0; i < n; ++i) {
             all.forEachField(kind, i, [&](const FieldValue& fv) {
