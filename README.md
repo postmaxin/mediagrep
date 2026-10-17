@@ -72,6 +72,12 @@ recursively. Files the library does not recognize as media are skipped
 silently, so sidecars and text files in a collection are fine. Images
 are media to MediaInfoLib, so use `--exclude` to skip them when needed.
 
+On Unix, MediaInfoLib opens files through the C library's locale
+conversion, so a UTF-8 locale must exist on the system for file names
+with non-ASCII characters. mediagrep selects one itself (the
+environment's, then `C.UTF-8`, then `en_US.UTF-8`) and warns if none
+is available.
+
 | Option | Meaning |
 |---|---|
 | `-e EXPR` | Expression. Repeatable; ORed together. |

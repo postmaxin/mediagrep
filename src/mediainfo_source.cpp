@@ -2,12 +2,16 @@
 
 #include <array>
 #include <cctype>
+#include <mutex>
 #include <sstream>
 #include <vector>
 
 #ifdef _WIN32
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
+#else
+#include <clocale>
+#include <langinfo.h>
 #endif
 
 // The vendored headers define a few function pointers they never use and
@@ -34,6 +38,21 @@ namespace {
 
 using MediaInfoDLL::MediaInfo;
 using MediaInfoDLL::String;
+
+bool setUtf8Ctype() {
+#ifdef _WIN32
+    return true;  // the wide API is used directly; no conversion involved
+#else
+    for (const char* name : {"", "C.UTF-8", "C.utf8", "en_US.UTF-8", "en_US.utf8"}) {
+        if (!std::setlocale(LC_CTYPE, name)) continue;
+        std::string codeset = nl_langinfo(CODESET);
+        for (char& c : codeset) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        if (codeset == "UTF-8" || codeset == "UTF8") return true;
+    }
+    std::setlocale(LC_CTYPE, "C");
+    return false;
+#endif
+}
 
 MediaInfoDLL::stream_t toStream(TrackKind kind) {
     switch (kind) {
@@ -133,7 +152,16 @@ struct MediaInfoSource::Impl {
     }
 };
 
-MediaInfoSource::MediaInfoSource(double parseSpeed) : impl_(std::make_unique<Impl>(parseSpeed)) {}
+bool MediaInfoSource::ensureUtf8Locale() {
+    static std::once_flag once;
+    static bool ok = false;
+    std::call_once(once, [] { ok = setUtf8Ctype(); });
+    return ok;
+}
+
+MediaInfoSource::MediaInfoSource(double parseSpeed) : impl_(std::make_unique<Impl>(parseSpeed)) {
+    ensureUtf8Locale();
+}
 MediaInfoSource::~MediaInfoSource() = default;
 
 bool MediaInfoSource::open(const std::string& utf8Path) {

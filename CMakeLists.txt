@@ -110,6 +110,7 @@ if(MEDIAGREP_BUILD_TESTS)
     target_include_directories(mediagrep_tests PRIVATE third_party/doctest)
     target_compile_definitions(mediagrep_tests PRIVATE
         MEDIAGREP_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+        MEDIAGREP_UNICODE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/unicode"
         MEDIAGREP_BINARY="$<TARGET_FILE:mediagrep>")
     if(MSVC)
         target_compile_definitions(mediagrep_tests PRIVATE _CRT_SECURE_NO_WARNINGS)

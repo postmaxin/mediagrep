@@ -36,6 +36,13 @@ public:
     // Library version string, or nullopt if the library cannot be loaded.
     static std::optional<std::string> libraryVersion();
 
+    // On Unix, MediaInfoLib converts wide file names with wcstombs, so the
+    // process needs a UTF-8 LC_CTYPE or files with non-ASCII names cannot be
+    // opened. This sets one (environment first, then common UTF-8 locales),
+    // once, leaving LC_NUMERIC alone. Returns false if none is available.
+    // Constructing a MediaInfoSource calls it; main calls it to warn.
+    static bool ensureUtf8Locale();
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

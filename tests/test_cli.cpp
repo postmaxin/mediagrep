@@ -161,6 +161,12 @@ TEST_CASE("cli: a bad regex exits 2") {
     CHECK(run("-e \"Title ~ '('\" .").status == 2);
 }
 
+TEST_CASE("cli: non-ASCII file names are read and printed as UTF-8") {
+    Run r = run("-l -e \"Format = Matroska\" ../unicode");
+    CHECK(r.status == 0);
+    CHECK(r.out == "../unicode/" "t\xC3\xA1lk\xE2\x80\x93" "engines.mkv" "\n");
+}
+
 TEST_CASE("cli: -j 1 gives the same output") {
     CHECK(run("-j 1 -l -e \"Video/Height < 1000\" .").out == "./clip.mp4\n./talk.mkv\n");
 }

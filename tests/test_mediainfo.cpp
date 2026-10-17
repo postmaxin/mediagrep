@@ -125,6 +125,15 @@ TEST_CASE("clip.mp4 and song.mp3") {
     CHECK(value(src, TrackKind::General, 0, "Recorded_Date") == "2019");
 }
 
+TEST_CASE("a file whose name contains non-ASCII characters opens") {
+    // Regression: on Unix, MediaInfoLib converts the wide path with wcstombs,
+    // which fails in the default "C" locale unless the program sets a UTF-8 one.
+    MediaInfoSource src;
+    REQUIRE(src.open(std::string(MEDIAGREP_UNICODE_DIR) + "/" "t\xC3\xA1lk\xE2\x80\x93" "engines.mkv"));
+    CHECK(src.isMedia());
+    CHECK(value(src, TrackKind::General, 0, "Format") == "Matroska");
+}
+
 TEST_CASE("reopening replaces the previous file's metadata") {
     MediaInfoSource src;
     REQUIRE(src.open(fixture("talk.mkv")));

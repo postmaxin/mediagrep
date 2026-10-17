@@ -207,6 +207,8 @@ int realMain(const std::vector<std::string>& args) {
              "its shared library is on the loader path.");
         return 2;
     }
+    if (!MediaInfoSource::ensureUtf8Locale() && !options->noMessages)
+        warn("warning: no UTF-8 locale is available; files with non-ASCII names may not open");
     if (options->fieldsFile) return dumpFields(*options);
     return run(*options);
 }
