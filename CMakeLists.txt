@@ -13,6 +13,7 @@ option(MEDIAGREP_LINK_STATIC
 # Core library: everything except main(), so tests can link it.
 # ---------------------------------------------------------------------------
 add_library(mediagrep_core STATIC
+    src/cli.cpp
     src/eval.cpp
     src/expr.cpp
     src/mediainfo_source.cpp
@@ -48,14 +49,24 @@ find_package(Threads REQUIRED)
 target_link_libraries(mediagrep_core PUBLIC Threads::Threads)
 
 # ---------------------------------------------------------------------------
+# The command-line tool
+# ---------------------------------------------------------------------------
+add_executable(mediagrep src/main.cpp)
+target_link_libraries(mediagrep PRIVATE mediagrep_core)
+target_compile_definitions(mediagrep PRIVATE MEDIAGREP_VERSION="${PROJECT_VERSION}")
+install(TARGETS mediagrep RUNTIME DESTINATION bin)
+
+# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 if(MEDIAGREP_BUILD_TESTS)
     enable_testing()
     add_executable(mediagrep_tests
         tests/main.cpp
+        tests/test_cli.cpp
         tests/test_eval.cpp
         tests/test_mediainfo.cpp
+        tests/test_options.cpp
         tests/test_parser.cpp
         tests/test_pool.cpp
         tests/test_units.cpp
@@ -64,7 +75,9 @@ if(MEDIAGREP_BUILD_TESTS)
     )
     target_include_directories(mediagrep_tests PRIVATE third_party/doctest)
     target_compile_definitions(mediagrep_tests PRIVATE
-        MEDIAGREP_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
+        MEDIAGREP_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+        MEDIAGREP_BINARY="$<TARGET_FILE:mediagrep>")
     target_link_libraries(mediagrep_tests PRIVATE mediagrep_core)
+    add_dependencies(mediagrep_tests mediagrep)
     add_test(NAME unit COMMAND mediagrep_tests)
 endif()
