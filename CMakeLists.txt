@@ -19,6 +19,7 @@ add_library(mediagrep_core STATIC
     src/parser.cpp
     src/units.cpp
     src/utf.cpp
+    src/walker.cpp
 )
 target_include_directories(mediagrep_core
     PUBLIC src
@@ -56,8 +57,10 @@ if(MEDIAGREP_BUILD_TESTS)
         tests/test_eval.cpp
         tests/test_mediainfo.cpp
         tests/test_parser.cpp
+        tests/test_pool.cpp
         tests/test_units.cpp
         tests/test_utf.cpp
+        tests/test_walker.cpp
     )
     target_include_directories(mediagrep_tests PRIVATE third_party/doctest)
     target_compile_definitions(mediagrep_tests PRIVATE
