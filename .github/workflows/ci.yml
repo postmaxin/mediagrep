@@ -75,4 +75,4 @@ jobs:
         shell: pwsh
         run: |
           .\build\Release\mediagrep.exe --version
-          .\build\Release\mediagrep.exe -i engineering tests\fixtures
+          .\build\Release\mediagrep.exe -ri engineering tests\fixtures

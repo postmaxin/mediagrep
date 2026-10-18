@@ -14,8 +14,8 @@ std::size_t defaultJobs() {
 
 std::string usageText() {
     return
-        "usage: mediagrep [OPTIONS] -e EXPR [-e EXPR ...] [PATH ...]\n"
-        "       mediagrep [OPTIONS] PATTERN [PATH ...]\n"
+        "usage: mediagrep [OPTIONS] -e EXPR [-e EXPR ...] PATH...\n"
+        "       mediagrep [OPTIONS] PATTERN PATH...\n"
         "       mediagrep --fields FILE\n"
         "\n"
         "Search the metadata of media files. PATTERN is a regex matched against\n"
