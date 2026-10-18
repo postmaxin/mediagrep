@@ -9,6 +9,7 @@
 namespace mediagrep {
 
 struct WalkOptions {
+    bool recurse = false;               // -r or -R; otherwise a directory root is an error
     bool followSymlinks = false;        // -R; symlinks given as roots are always followed
     std::vector<std::string> include;   // --include globs; empty means everything
     std::vector<std::string> exclude;   // --exclude globs
@@ -25,6 +26,8 @@ using ErrorCallback = std::function<void(const std::string& path, const std::str
 // order given, directory entries sorted by name, depth first. Reported paths
 // are the root as given joined with the relative part, like grep -r.
 // Roots that are files are always visited, ignoring include/exclude.
+// Without `recurse`, a directory root is reported as "Is a directory"
+// and skipped, like grep.
 // Problems (missing root, unreadable directory) go to onError and the walk
 // continues. Returns the number of errors.
 std::size_t walk(const std::vector<std::string>& roots, const WalkOptions& options,

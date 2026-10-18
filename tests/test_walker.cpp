@@ -30,7 +30,13 @@ std::string slashes(std::string s) {
     return s;
 }
 
-std::vector<std::string> files(const std::vector<std::string>& roots, const WalkOptions& opts = {},
+WalkOptions recursive() {
+    WalkOptions o;
+    o.recurse = true;
+    return o;
+}
+
+std::vector<std::string> files(const std::vector<std::string>& roots, const WalkOptions& opts = recursive(),
                                std::vector<std::string>* errors = nullptr) {
     std::vector<std::string> out;
     walk(roots, opts,
@@ -47,7 +53,7 @@ std::string rel(const Tree& t, const std::string& p) {
 }
 
 std::vector<std::string> relFiles(const Tree& t, const std::vector<std::string>& roots,
-                                  const WalkOptions& opts = {}) {
+                                  const WalkOptions& opts = recursive()) {
     std::vector<std::string> out;
     for (const auto& p : files(roots, opts)) out.push_back(rel(t, p));
     return out;
@@ -100,15 +106,15 @@ TEST_CASE("walk reports paths as the root given plus the relative part") {
 
 TEST_CASE("walk honours include and exclude globs on the file name") {
     Tree t;
-    WalkOptions inc;
+    WalkOptions inc = recursive();
     inc.include = {"*.mkv"};
     CHECK(relFiles(t, {t.t.root}, inc) == std::vector<std::string>{"a/1.mkv", "a/z.mkv"});
 
-    WalkOptions exc;
+    WalkOptions exc = recursive();
     exc.exclude = {"*.txt", "*.mp3"};
     CHECK(relFiles(t, {t.t.root}, exc) == std::vector<std::string>{"a/1.mkv", "a/b/2.mp4", "a/z.mkv"});
 
-    WalkOptions both;
+    WalkOptions both = recursive();
     both.include = {"*.mkv", "*.mp4"};
     both.exclude = {"1.*"};
     CHECK(relFiles(t, {t.t.root}, both) == std::vector<std::string>{"a/b/2.mp4", "a/z.mkv"});
@@ -116,7 +122,7 @@ TEST_CASE("walk honours include and exclude globs on the file name") {
 
 TEST_CASE("roots are visited in argument order, and file roots bypass filters") {
     Tree t;
-    WalkOptions inc;
+    WalkOptions inc = recursive();
     inc.include = {"*.mkv"};
     CHECK(relFiles(t, {t.path("top.mp3"), t.path("a/b"), t.path("a/1.mkv")}, inc) ==
           std::vector<std::string>{"top.mp3", "a/1.mkv"});
@@ -125,7 +131,7 @@ TEST_CASE("roots are visited in argument order, and file roots bypass filters") 
 TEST_CASE("a missing root is an error and the walk continues") {
     Tree t;
     std::vector<std::string> errors;
-    auto out = files({t.path("nope"), t.path("top.mp3")}, {}, &errors);
+    auto out = files({t.path("nope"), t.path("top.mp3")}, recursive(), &errors);
     REQUIRE(errors.size() == 1);
     CHECK(errors[0].find("nope") != std::string::npos);
     REQUIRE(out.size() == 1);
@@ -134,7 +140,16 @@ TEST_CASE("a missing root is an error and the walk continues") {
 
 TEST_CASE("walk returns the error count") {
     Tree t;
-    WalkOptions opts;
-    CHECK(walk({t.path("nope"), t.path("also-nope")}, opts, [](const std::string&) {},
+    CHECK(walk({t.path("nope"), t.path("also-nope")}, recursive(), [](const std::string&) {},
                [](const std::string&, const std::string&) {}) == 2);
+}
+
+TEST_CASE("without recurse, a directory root is 'Is a directory' and file roots still visit") {
+    Tree t;
+    std::vector<std::string> errors;
+    auto out = files({t.path("a"), t.path("top.mp3")}, WalkOptions{}, &errors);
+    REQUIRE(errors.size() == 1);
+    CHECK(errors[0] == slashes(t.path("a")) + ": Is a directory");
+    REQUIRE(out.size() == 1);
+    CHECK(rel(t, out[0]) == "top.mp3");
 }

@@ -62,7 +62,10 @@ struct Walker {
         if (!error.empty()) { fail(path, error); return; }
         switch (type) {
             case fsys::FileType::Missing: fail(path, "No such file or directory"); break;
-            case fsys::FileType::Directory: directory(path); break;
+            case fsys::FileType::Directory:
+                if (options.recurse) directory(path);
+                else fail(path, "Is a directory");
+                break;
             case fsys::FileType::Regular: onFile(path); break;
             case fsys::FileType::Other: break;
         }

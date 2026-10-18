@@ -25,7 +25,7 @@ std::string usageText() {
         "  '(Title ~ \"engine\" or Publisher ~ \"engine\") and \"60 minutes\"'\n"
         "Fields are [Track[N]/]Name; tracks are General, Video, Audio, Text, Image,\n"
         "Menu, Other. Operators: = != ~ !~ < <= > >=. A bare field tests existence.\n"
-        "Directories are searched recursively. With no PATH, the current directory.\n"
+        "Directories are searched only with -r or -R, as with grep.\n"
         "\n"
         "  -e EXPR          expression; repeatable, ORed together\n"
         "  -i               case-insensitive matching\n"
@@ -34,7 +34,7 @@ std::string usageText() {
         "  -L               print only non-matching paths\n"
         "  -c               print a count of matching files per PATH\n"
         "  -0               end records with NUL instead of newline\n"
-        "  -r               recurse, do not follow symlinks (default)\n"
+        "  -r               recurse into directories, not following symlinks\n"
         "  -R               recurse and follow symlinks\n"
         "  --include GLOB   only files whose name matches; repeatable\n"
         "  --exclude GLOB   skip files whose name matches; repeatable\n"
@@ -132,8 +132,8 @@ std::optional<Options> parseArgs(const std::vector<std::string>& args, std::stri
                 case 'L': o.output = Options::Output::FilesWithoutMatch; break;
                 case 'c': o.output = Options::Output::Count; break;
                 case '0': o.nullSeparated = true; break;
-                case 'r': o.followSymlinks = false; break;
-                case 'R': o.followSymlinks = true; break;
+                case 'r': o.recurse = true; o.followSymlinks = false; break;
+                case 'R': o.recurse = true; o.followSymlinks = true; break;
                 case 'q': o.quiet = true; break;
                 case 's': o.noMessages = true; break;
                 case 'h': o.help = true; break;
@@ -164,7 +164,10 @@ std::optional<Options> parseArgs(const std::vector<std::string>& args, std::stri
             positionals.erase(positionals.begin());
         }
         o.paths = positionals;
-        if (o.paths.empty()) o.paths.push_back(".");
+        if (o.paths.empty()) {
+            error = "no PATH given";
+            return std::nullopt;
+        }
     }
     return o;
 }

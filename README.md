@@ -6,15 +6,15 @@ searches their contents, using [MediaInfoLib](https://mediaarea.net/MediaInfo).
 
 ```sh
 # Every field of every track, case-insensitive, recursively from here
-$ mediagrep -i "interesting engineering" ~/Videos
+$ mediagrep -ri "interesting engineering" ~/Videos
 ~/Videos/talk.mkv: General/PUBLISHER: Interesting Engineering
 
 # Field comparisons with boolean operators
-$ mediagrep -e 'Video/Height < 1000 and not Audio/Language = ja' ~/Videos
+$ mediagrep -r -e 'Video/Height < 1000 and not Audio/Language = ja' ~/Videos
 ~/Videos/old/clip.mp4: Video/Height: 720
 
 # Several expressions are ORed, like grep -e
-$ mediagrep -l -e 'Duration > 1h' -e 'Format = Matroska' ~/Videos
+$ mediagrep -rl -e 'Duration > 1h' -e 'Format = Matroska' ~/Videos
 ```
 
 Output mirrors grep's `file: line` form, with the matching field standing
@@ -62,13 +62,16 @@ On macOS the build looks in Homebrew's `/opt/homebrew/lib` and
 ## Usage
 
 ```
-mediagrep [OPTIONS] -e EXPR [-e EXPR ...] [PATH ...]
-mediagrep [OPTIONS] PATTERN [PATH ...]
+mediagrep [OPTIONS] -e EXPR [-e EXPR ...] PATH...
+mediagrep [OPTIONS] PATTERN PATH...
 mediagrep --fields FILE
 ```
 
-With no `PATH`, the current directory. Directories are searched
-recursively. Files the library does not recognize as media are skipped
+At least one `PATH` is required. As with grep, directories are only
+entered with `-r` or `-R`; otherwise a directory argument is reported
+as `Is a directory` and skipped, so `mediagrep PATTERN *` searches
+the files in front of you and nothing deeper. Files the library does
+not recognize as media are skipped
 silently, so sidecars and text files in a collection are fine. Images
 are media to MediaInfoLib, so use `--exclude` to skip them when needed.
 
@@ -87,7 +90,7 @@ is available.
 | `-L` | Print only non-matching paths. |
 | `-c` | Print a count of matching files per `PATH`. |
 | `-0` | End records with NUL instead of newline, for `xargs -0`. |
-| `-r` | Recurse, do not follow symlinks (default). |
+| `-r` | Recurse into directories, not following symlinks. |
 | `-R` | Recurse and follow symlinks. |
 | `--include GLOB` | Only files whose name matches. Repeatable. |
 | `--exclude GLOB` | Skip files whose name matches. Repeatable. |
@@ -142,11 +145,11 @@ OP     := = | != | ~ | !~ | < | <= | > | >=
   the quote. Quote the whole expression for your shell.
 
 ```sh
-mediagrep -e 'Duration > 1h30m and Video/Height >= 1080' .
-mediagrep -e 'Audio/Language = ja and not Text/Language = en' .
-mediagrep -e '(Title ~ "engine" or Publisher ~ "engine") and Encoded_Date >= 2024' .
-mediagrep -e 'FileSize > 4G' --include '*.mkv' /mnt/media
-mediagrep -c -e 'not Audio/Language' ~/Music   # files with no language tag
+mediagrep -r -e 'Duration > 1h30m and Video/Height >= 1080' .
+mediagrep -r -e 'Audio/Language = ja and not Text/Language = en' .
+mediagrep -r -e '(Title ~ "engine" or Publisher ~ "engine") and Encoded_Date >= 2024' .
+mediagrep -r -e 'FileSize > 4G' --include '*.mkv' /mnt/media
+mediagrep -rc -e 'not Audio/Language' ~/Music   # files with no language tag
 ```
 
 ### The File track
@@ -158,8 +161,8 @@ the OS records a birth time), `Accessed`, and on POSIX `Mode`, `Owner`,
 `Group`. Times are UTC, matching MediaInfoLib's own dates.
 
 ```sh
-mediagrep -l -e 'File/Size > 4G' .
-mediagrep -l -e 'File/Modified >= 2026-01 and not Audio/Language' .
+mediagrep -rl -e 'File/Size > 4G' .
+mediagrep -rl -e 'File/Modified >= 2026-01 and not Audio/Language' .
 ```
 
 ### The Path track
@@ -192,9 +195,9 @@ namespace.
 | `@name` | File/Name, Title, Movie, Track, Album |
 
 ```sh
-mediagrep -e '@when = 2024' .              # anything dated 2024, by any measure
-mediagrep -il -e '@who ~ engineering' .    # channel, artist, publisher, ...
-mediagrep -c -e 'not @when' .              # files with no date at all
+mediagrep -r -e '@when = 2024' .           # anything dated 2024, by any measure
+mediagrep -ril -e '@who ~ engineering' .   # channel, artist, publisher, ...
+mediagrep -rc -e 'not @when' .             # files with no date at all
 ```
 
 Field names are case-insensitive. To see what a file actually carries:

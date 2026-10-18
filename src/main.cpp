@@ -113,6 +113,7 @@ int run(const Options& options) {
     }
 
     WalkOptions walkOptions;
+    walkOptions.recurse = options.recurse;
     walkOptions.followSymlinks = options.followSymlinks;
     walkOptions.include = options.include;
     walkOptions.exclude = options.exclude;

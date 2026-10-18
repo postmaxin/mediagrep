@@ -55,7 +55,7 @@ TEST_CASE("cli: field comparison prints path, field and value") {
 }
 
 TEST_CASE("cli: directories recurse, non-media files are skipped, order is by name") {
-    Run r = run("-e \"Format\" --include \"*.mp4\" --include \"*.mkv\" .");
+    Run r = run("-r -e \"Format\" --include \"*.mp4\" --include \"*.mkv\" .");
     CHECK(r.status == 0);
     CHECK(r.out == "./clip.mp4: General/Format: MPEG-4\n"
                    "./clip.mp4: Video/Format: AVC\n"
@@ -67,60 +67,67 @@ TEST_CASE("cli: directories recurse, non-media files are skipped, order is by na
 }
 
 TEST_CASE("cli: -l lists matching paths once") {
-    Run r = run("-l -e \"Video/Height < 1000\" .");
+    Run r = run("-r -l -e \"Video/Height < 1000\" .");
     CHECK(r.status == 0);
     CHECK(r.out == "./clip.mp4\n./talk.mkv\n");
 }
 
 TEST_CASE("cli: positional pattern searches every field, -i ignores case") {
-    CHECK(run("\"interesting engineering\" .").status == 1);
-    Run r = run("-i \"interesting engineering\" .");
+    CHECK(run("-r \"interesting engineering\" .").status == 1);
+    Run r = run("-r -i \"interesting engineering\" .");
     CHECK(r.status == 0);
     CHECK(r.out == "./talk.mkv: General/PUBLISHER: Interesting Engineering\n");
 }
 
-TEST_CASE("cli: no path means the current directory") {
+TEST_CASE("cli: no path is a usage error") {
     Run r = run("-l -e \"Format = Matroska\"");
-    CHECK(r.status == 0);
-    CHECK(r.out == "./talk.mkv\n");
+    CHECK(r.status == 2);
+    CHECK(r.out.find("usage") != std::string::npos);
+}
+
+TEST_CASE("cli: a directory without -r is an error, like grep") {
+    Run r = run("-l -e \"Format = Matroska\" . talk.mkv");
+    CHECK(r.status == 2);
+    CHECK(r.out == "mediagrep: .: Is a directory\ntalk.mkv\n");
+    CHECK(run("-R -l -e \"Format = Matroska\" .").out == "./talk.mkv\n");
 }
 
 TEST_CASE("cli: multiple -e are ORed") {
-    Run r = run("-l -e \"Audio/Language = ja\" -e \"Height = 720\" .");
+    Run r = run("-r -l -e \"Audio/Language = ja\" -e \"Height = 720\" .");
     CHECK(r.out == "./clip.mp4\n./talk.mkv\n");
 }
 
 TEST_CASE("cli: -v and -L select non-matching media files") {
-    CHECK(run("-v -l -e \"Audio/Language = ja\" .").out == "./clip.mp4\n./song.mp3\n");
-    CHECK(run("-L -e \"Audio/Language = ja\" .").out == "./clip.mp4\n./song.mp3\n");
+    CHECK(run("-r -v -l -e \"Audio/Language = ja\" .").out == "./clip.mp4\n./song.mp3\n");
+    CHECK(run("-r -L -e \"Audio/Language = ja\" .").out == "./clip.mp4\n./song.mp3\n");
 }
 
 TEST_CASE("cli: -c counts matching files per path argument") {
-    Run r = run("-c -e \"Video/Height < 1000\" . talk.mkv");
+    Run r = run("-r -c -e \"Video/Height < 1000\" . talk.mkv");
     CHECK(r.status == 0);
     CHECK(r.out == ".: 2\ntalk.mkv: 1\n");
 }
 
 TEST_CASE("cli: -0 separates records with NUL") {
-    Run r = run("-l0 -e \"Audio/Language = ja\" .");
+    Run r = run("-r -l0 -e \"Audio/Language = ja\" .");
     CHECK(r.out == std::string("./talk.mkv\0", 11));
 }
 
 TEST_CASE("cli: -q prints nothing and exits by match status") {
-    Run hit = run("-q -e \"Audio/Language = ja\" .");
+    Run hit = run("-r -q -e \"Audio/Language = ja\" .");
     CHECK(hit.status == 0);
     CHECK(hit.out.empty());
-    CHECK(run("-q -e \"Audio/Language = fr\" .").status == 1);
+    CHECK(run("-r -q -e \"Audio/Language = fr\" .").status == 1);
 }
 
 TEST_CASE("cli: no match exits 1 with no output") {
-    Run r = run("-e \"Audio/Language = fr\" .");
+    Run r = run("-r -e \"Audio/Language = fr\" .");
     CHECK(r.status == 1);
     CHECK(r.out.empty());
 }
 
 TEST_CASE("cli: a bad expression exits 2 with the position marked") {
-    Run r = run("-e \"Title =\" .");
+    Run r = run("-r -e \"Title =\" .");
     CHECK(r.status == 2);
     CHECK(r.out.find("expected value") != std::string::npos);
     CHECK(r.out.find("^") != std::string::npos);
@@ -158,24 +165,24 @@ TEST_CASE("cli: no expression is a usage error") {
 }
 
 TEST_CASE("cli: a bad regex exits 2") {
-    CHECK(run("-e \"Title ~ '('\" .").status == 2);
+    CHECK(run("-r -e \"Title ~ '('\" .").status == 2);
 }
 
 TEST_CASE("cli: non-ASCII file names are read and printed as UTF-8") {
-    Run r = run("-l -e \"Format = Matroska\" ../unicode");
+    Run r = run("-r -l -e \"Format = Matroska\" ../unicode");
     CHECK(r.status == 0);
     CHECK(r.out == "../unicode/" "t\xC3\xA1lk\xE2\x80\x93" "engines.mkv" "\n");
 }
 
 TEST_CASE("cli: -j 1 gives the same output") {
-    CHECK(run("-j 1 -l -e \"Video/Height < 1000\" .").out == "./clip.mp4\n./talk.mkv\n");
+    CHECK(run("-r -j 1 -l -e \"Video/Height < 1000\" .").out == "./clip.mp4\n./talk.mkv\n");
 }
 
 TEST_CASE("cli: the File track is searchable and listed by --fields") {
     Run r = run("-e \"File/Size > 10K\" talk.mkv");
     CHECK(r.status == 0);
     CHECK(r.out == "talk.mkv: File/Size: 11932\n");
-    CHECK(run("-l -e \"Size > 10K and Size < 20K\" .").out == "./talk.mkv\n");
+    CHECK(run("-r -l -e \"Size > 10K and Size < 20K\" .").out == "./talk.mkv\n");
     Run f = run("--fields talk.mkv");
     CHECK(f.out.find("File/Name: talk.mkv\n") != std::string::npos);
     CHECK(f.out.find("File/Size: 11932\n") != std::string::npos);
@@ -187,16 +194,16 @@ TEST_CASE("cli: aliases expand and report the concrete field") {
           "talk.mkv: General/PUBLISHER: Interesting Engineering\n");
     CHECK(run("-e \"@name ~ talk\" talk.mkv").out == "talk.mkv: File/Name: talk.mkv\n");
     CHECK(run("-e \"@when\" -l song.mp3").out == "song.mp3\n");
-    Run bad = run("-e \"@bogus = 1\" .");
+    Run bad = run("-r -e \"@bogus = 1\" .");
     CHECK(bad.status == 2);
     CHECK(bad.out.find("unknown alias") != std::string::npos);
 }
 
 TEST_CASE("cli: the Path track is recognized from the file name") {
-    Run r = run("-e \"Path/When = 2019\" ../unicode");
+    Run r = run("-r -e \"Path/When = 2019\" ../unicode");
     CHECK(r.status == 0);
     CHECK(r.out == "../unicode/Quiet Song - S01E02 - 2019-05-04 [dQw4w9WgXcQ].mp3: Path/When: 2019-05-04\n");
-    CHECK(run("-l -e \"@when = 2019\" ../unicode").out ==
+    CHECK(run("-r -l -e \"@when = 2019\" ../unicode").out ==
           "../unicode/Quiet Song - S01E02 - 2019-05-04 [dQw4w9WgXcQ].mp3\n");
     Run f = run("--fields \"../unicode/Quiet Song - S01E02 - 2019-05-04 [dQw4w9WgXcQ].mp3\"");
     CHECK(f.out.find("Path/Season: 1\n") != std::string::npos);

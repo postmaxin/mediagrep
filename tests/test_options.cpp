@@ -50,13 +50,21 @@ TEST_CASE("-e accepts an attached argument") {
     CHECK(o.expressions == std::vector<std::string>{"a = 1"});
 }
 
-TEST_CASE("no paths means the current directory") {
-    Options o = parse({"-e", "a = 1"});
-    CHECK(o.paths == std::vector<std::string>{"."});
+TEST_CASE("no paths is an error") {
+    CHECK(parseError({"-e", "a = 1"}).find("PATH") != std::string::npos);
+    CHECK(parseError({"pattern"}).find("PATH") != std::string::npos);
+}
+
+TEST_CASE("recursion is opt-in: -r, or -R to follow symlinks") {
+    CHECK_FALSE(parse({"pat", "p", "d"}).recurse);
+    CHECK(parse({"-r", "pat", "p", "d"}).recurse);
+    CHECK_FALSE(parse({"-r", "pat", "p", "d"}).followSymlinks);
+    CHECK(parse({"-R", "pat", "p", "d"}).recurse);
+    CHECK(parse({"-R", "pat", "p", "d"}).followSymlinks);
 }
 
 TEST_CASE("short flags combine") {
-    Options o = parse({"-ilR0", "pat"});
+    Options o = parse({"-ilR0", "pat", "d"});
     CHECK(o.ignoreCase);
     CHECK(o.output == Options::Output::FilesWithMatches);
     CHECK(o.followSymlinks);
@@ -64,30 +72,30 @@ TEST_CASE("short flags combine") {
 }
 
 TEST_CASE("output mode flags") {
-    CHECK(parse({"-L", "p"}).output == Options::Output::FilesWithoutMatch);
-    CHECK(parse({"-c", "p"}).output == Options::Output::Count);
-    CHECK(parse({"-v", "p"}).invert);
-    CHECK(parse({"-q", "p"}).quiet);
-    CHECK(parse({"-s", "p"}).noMessages);
-    CHECK(parse({"-r", "p"}).followSymlinks == false);
+    CHECK(parse({"-L", "p", "d"}).output == Options::Output::FilesWithoutMatch);
+    CHECK(parse({"-c", "p", "d"}).output == Options::Output::Count);
+    CHECK(parse({"-v", "p", "d"}).invert);
+    CHECK(parse({"-q", "p", "d"}).quiet);
+    CHECK(parse({"-s", "p", "d"}).noMessages);
+    CHECK(parse({"-r", "p", "d"}).followSymlinks == false);
 }
 
 TEST_CASE("-j takes a number, attached or separate") {
-    CHECK(parse({"-j", "4", "p"}).jobs == 4);
-    CHECK(parse({"-j8", "p"}).jobs == 8);
-    CHECK(parseError({"-j", "x", "p"}).find("-j") != std::string::npos);
-    CHECK(parseError({"-j", "0", "p"}).find("-j") != std::string::npos);
+    CHECK(parse({"-j", "4", "p", "d"}).jobs == 4);
+    CHECK(parse({"-j8", "p", "d"}).jobs == 8);
+    CHECK(parseError({"-j", "x", "p", "d"}).find("-j") != std::string::npos);
+    CHECK(parseError({"-j", "0", "p", "d"}).find("-j") != std::string::npos);
 }
 
 TEST_CASE("long options with = or a separate value") {
     Options o = parse({"--include=*.mkv", "--include", "*.mp4", "--exclude=*.txt",
-                       "--parse-speed=0.5", "p"});
+                       "--parse-speed=0.5", "p", "d"});
     CHECK(o.include == std::vector<std::string>{"*.mkv", "*.mp4"});
     CHECK(o.exclude == std::vector<std::string>{"*.txt"});
     CHECK(o.parseSpeed == 0.5);
-    CHECK(parse({"--parse-speed", "1", "p"}).parseSpeed == 1.0);
-    CHECK(parseError({"--parse-speed", "2", "p"}).find("parse-speed") != std::string::npos);
-    CHECK(parseError({"--parse-speed", "abc", "p"}).find("parse-speed") != std::string::npos);
+    CHECK(parse({"--parse-speed", "1", "p", "d"}).parseSpeed == 1.0);
+    CHECK(parseError({"--parse-speed", "2", "p", "d"}).find("parse-speed") != std::string::npos);
+    CHECK(parseError({"--parse-speed", "abc", "p", "d"}).find("parse-speed") != std::string::npos);
 }
 
 TEST_CASE("--fields takes a file and needs no expression") {
@@ -111,8 +119,8 @@ TEST_CASE("-- ends option parsing") {
 }
 
 TEST_CASE("errors: unknown options, missing values, missing expression") {
-    CHECK(parseError({"-Z", "p"}).find("-Z") != std::string::npos);
-    CHECK(parseError({"--bogus", "p"}).find("--bogus") != std::string::npos);
+    CHECK(parseError({"-Z", "p", "d"}).find("-Z") != std::string::npos);
+    CHECK(parseError({"--bogus", "p", "d"}).find("--bogus") != std::string::npos);
     CHECK(parseError({"-e"}).find("-e") != std::string::npos);
     CHECK(parseError({"--include"}).find("--include") != std::string::npos);
     CHECK(parseError({}).find("expression") != std::string::npos);

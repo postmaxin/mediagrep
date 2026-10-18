@@ -131,8 +131,10 @@ fields through `Count_Get` plus `Get` by index with `Info_Name`.
 Expands the path arguments through a small file-system layer (`fsys`)
 with POSIX and Win32 backends; `std::filesystem` is deliberately not
 used, because toolchains such as Entware's GCC 8 on NAS boxes ship no
-implementation of it. Directories recurse
-(`-r`, the default); `-R` also follows symlinks. `--include` and
+implementation of it. Directories are entered only with `-r`, or `-R`
+to also follow symlinks; otherwise a directory argument is an "Is a
+directory" error, as in grep, so a shell glob searches one level
+without surprises. `--include` and
 `--exclude` globs filter by filename. Files are numbered in discovery
 order, dispatched to a queue served by `-j` workers (default: the
 smaller of 2 and `hardware_concurrency`, because the bottleneck is disk
@@ -266,8 +268,10 @@ mediagrep [OPTIONS] PATTERN PATH...
 mediagrep --fields FILE
 ```
 
-With no `PATH`, the current directory is searched, as GNU grep does
-with `-r`. The second form is grep's: when no `-e` is given, the first
+At least one `PATH` is required; with none the tool prints usage and
+exits 2. Reading a media file from stdin was considered and rejected:
+MediaInfoLib would need the whole stream spooled to disk, a poor trade
+for a one-file check. The second form is grep's: when no `-e` is given, the first
 positional argument is a bare pattern, that is a regex searched across all text
 fields, exactly as if it were a quoted STRING atom. It is not parsed as
 an expression, so regex metacharacters such as parentheses never collide
@@ -283,7 +287,7 @@ with the grammar. Field comparisons and boolean operators require `-e`.
 | `-L` | Print only non-matching paths. |
 | `-c` | Print a count of matching files per PATH argument. |
 | `-0` | NUL-terminate output records instead of newline. |
-| `-r` | Recurse into directories, do not follow symlinks (default). |
+| `-r` | Recurse into directories, do not follow symlinks. Without `-r` or `-R` a directory PATH is an error. |
 | `-R` | Recurse and follow symlinks. |
 | `--include GLOB` | Only files whose name matches. Repeatable. |
 | `--exclude GLOB` | Skip files whose name matches. Repeatable. |

@@ -15,12 +15,13 @@ struct Options {
 
     std::vector<std::string> expressions;   // -e, ORed together
     std::optional<std::string> pattern;     // first positional when no -e
-    std::vector<std::string> paths;         // defaults to "." when empty
+    std::vector<std::string> paths;         // at least one is required
     bool ignoreCase = false;                // -i
     bool invert = false;                    // -v
     Output output = Output::Fields;         // -l, -L, -c
     bool nullSeparated = false;             // -0
-    bool followSymlinks = false;            // -R (vs -r)
+    bool recurse = false;                   // -r or -R
+    bool followSymlinks = false;            // -R
     std::vector<std::string> include;       // --include
     std::vector<std::string> exclude;       // --exclude
     std::size_t jobs = 0;                   // -j; 0 means default
