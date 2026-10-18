@@ -28,7 +28,7 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Smoke
-        run: ./build/mediagrep --version && ./build/mediagrep -i engineering tests/fixtures
+        run: ./build/mediagrep --version && ./build/mediagrep -ri engineering tests/fixtures
 
   macos:
     name: macOS (${{ matrix.link }})
@@ -50,7 +50,7 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Smoke
-        run: ./build/mediagrep --version && ./build/mediagrep -i engineering tests/fixtures
+        run: ./build/mediagrep --version && ./build/mediagrep -ri engineering tests/fixtures
 
   windows:
     name: Windows (dynamic)
