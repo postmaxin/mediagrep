@@ -1,5 +1,7 @@
 # mediagrep
 
+[![CI](https://github.com/postmaxin/mediagrep/actions/workflows/ci.yml/badge.svg)](https://github.com/postmaxin/mediagrep/actions/workflows/ci.yml)
+
 `grep` for media metadata. Searches the metadata of media files (title,
 publisher, duration, resolution, codec, language, ...) the way `grep`
 searches their contents, using [MediaInfoLib](https://mediaarea.net/MediaInfo).
@@ -30,6 +32,10 @@ order of magnitude faster on a large collection.
 
 ## Install
 
+Prebuilt archives for Windows x64 and Linux x86_64 are attached to each
+[release](https://github.com/postmaxin/mediagrep/releases). The Windows
+one includes `MediaInfo.dll`; on Linux, install the library as below.
+
 mediagrep needs MediaInfoLib at runtime. By default it loads the shared
 library when it starts, so any MediaInfo installation works:
 
@@ -47,7 +53,7 @@ Requirements: a C++17 compiler and CMake 3.16+. No other dependencies.
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build        # optional
-cmake --install build         # installs bin/mediagrep
+cmake --install build         # installs bin/mediagrep and its man page
 ```
 
 To link MediaInfoLib at build time instead of loading it at runtime
@@ -238,6 +244,8 @@ the MediaInfoLib backend and the CLI run against small fixture files in
 CI builds and tests on Linux, macOS, and Windows, with both the
 runtime-loaded and build-time-linked library.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report problems and
+send changes, and [CHANGELOG.md](CHANGELOG.md) for what changed when.
 The design is written up in
 [docs/superpowers/specs/2026-10-16-mediagrep-design.md](docs/superpowers/specs/2026-10-16-mediagrep-design.md).
 

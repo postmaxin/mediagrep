@@ -1,0 +1,269 @@
+.TH MEDIAGREP 1 "October 2026" "mediagrep @PROJECT_VERSION@" "User Commands"
+.SH NAME
+mediagrep \- search the metadata of media files, like grep
+.SH SYNOPSIS
+.B mediagrep
+.RI [ OPTIONS ]
+.B \-e
+.I EXPR
+.RB [ \-e
+.IR EXPR " ...]"
+.IR PATH ...
+.br
+.B mediagrep
+.RI [ OPTIONS ]
+.I PATTERN
+.IR PATH ...
+.br
+.B mediagrep \-\-fields
+.I FILE
+.SH DESCRIPTION
+.B mediagrep
+reads the metadata of each media file with MediaInfoLib (title,
+publisher, duration, resolution, codecs, languages and so on) and
+selects the files that match, the way
+.BR grep (1)
+selects lines.
+For each match it prints the path, the field and its value:
+.PP
+.RS
+.nf
+talk.mkv: General/PUBLISHER: Interesting Engineering
+.fi
+.RE
+.PP
+In the second form,
+.I PATTERN
+is a regular expression (ECMAScript syntax) searched for in every field
+of every track, except the fields that merely repeat the file's path.
+In the first form, each
+.I EXPR
+is an expression as described under
+.BR EXPRESSIONS ;
+several are ORed together.
+.PP
+Directories are searched only with
+.B \-r
+or
+.BR \-R ;
+otherwise a directory
+.I PATH
+is reported as
+.I "Is a directory"
+and skipped.
+Files that MediaInfoLib does not recognize as media are skipped
+silently.
+.SH OPTIONS
+.TP
+.BI \-e " EXPR"
+An expression. Repeatable; the expressions are ORed.
+.TP
+.B \-i
+Ignore case, in regular expressions and in equality alike.
+Only ASCII letters are folded.
+.TP
+.B \-v
+Select files that do not match.
+.TP
+.B \-l
+Print only the paths of matching files.
+.TP
+.B \-L
+Print only the paths of media files that do not match.
+.TP
+.B \-c
+Print a count of matching files for each
+.IR PATH .
+.TP
+.B \-0
+End output records with NUL instead of newline, for
+.BR "xargs \-0" .
+.TP
+.B \-r
+Recurse into directories, not following symbolic links.
+.TP
+.B \-R
+Recurse into directories, following symbolic links.
+.TP
+.BI \-\-include " GLOB"
+Search only files whose name matches
+.IR GLOB .
+Repeatable.
+.TP
+.BI \-\-exclude " GLOB"
+Skip files whose name matches
+.IR GLOB .
+Repeatable.
+.TP
+.BI \-j " N"
+Read
+.I N
+files at a time. The default is the smaller of 2 and the number of
+CPUs, since disks and networks, not processors, are the limit.
+.TP
+.BI \-\-parse\-speed " F"
+MediaInfoLib's parse speed, from 0 to 1. The default, 0, reads headers
+only; raise it for fields that need the whole file.
+.TP
+.BI \-\-fields " FILE"
+List every field of
+.I FILE
+with its value, and exit. This is how to find what a field is called.
+.TP
+.B \-q
+Print nothing. Exit with status 0 at the first match.
+.TP
+.B \-s
+Do not report unreadable files.
+.TP
+.B \-\-progress
+Show progress on stderr. On a terminal this is a single line redrawn in
+place: files done out of files found, then a percentage, bar and time
+remaining once every file has been found. This is the default when
+stderr is a terminal and
+.B \-q
+is not given. When stderr is not a terminal, a line is written every
+10 seconds and a summary at the end.
+.TP
+.B \-\-no\-progress
+Never show progress.
+.TP
+.BR \-h ", " \-\-help
+Show a summary of the options.
+.TP
+.B \-\-version
+Show the versions of mediagrep and of the MediaInfoLib it loaded.
+.SH EXPRESSIONS
+.nf
+expr   := or
+or     := and ( "or" and )*
+and    := not ( "and" not )*
+not    := "not" not | atom
+atom   := "(" expr ")" | "pattern" | field | field OP value
+field  := [ Track [ "[" N "]" ] "/" ] Name
+OP     := = | != | ~ | !~ | < | <= | > | >=
+.fi
+.PP
+Tracks are
+.BR General ", " Video ", " Audio ", " Text ", " Image ", " Menu
+and
+.B Other
+from MediaInfoLib, plus
+.B File
+and
+.B Path
+from mediagrep. A field without a track is looked up in every track;
+.B Audio[2]/Language
+looks only in the second audio track. Field names are case-insensitive.
+.PP
+A comparison is true if any track in scope satisfies it, so
+.B "not Audio/Language = ja"
+means that no audio track is Japanese. A field on its own tests that it
+exists.
+.PP
+Fields that MediaInfoLib reports as numbers compare numerically.
+Durations accept
+.BR 1h30m ", " 90m ", " 45s " and " 500ms ;
+a bare number is seconds. Sizes and bit rates accept
+.BR K ", " M ", " G " and " T
+(decimal); a bare number is bytes or bits per second.
+Dates compare at the granularity of the operand:
+.BR "= 2024" ,
+.BR ">= 2024-03" .
+Other values compare as text:
+.B =
+and
+.B !=
+exactly,
+.B ~
+and
+.B !~
+as unanchored regular expressions.
+Quote values that contain spaces with
+.B \(dq
+or
+.BR \(aq .
+.SS "The File and Path tracks"
+.B File
+holds what
+.BR stat (2)
+reports:
+.BR Name ", " Directory ", " Extension ", " Size ", " Modified ,
+.B Created
+where the system records it,
+.BR Accessed ,
+and on POSIX systems
+.BR Mode ", " Owner " and " Group .
+Times are UTC.
+.PP
+.B Path
+holds what mediagrep recognizes in the file name:
+.B When
+from a date such as 2024\-03\-01, 20240301, (2019) or a lone year;
+.B Season
+and
+.B Episode
+from S01E02 or 1x02, the season also from a "Season 1" directory;
+.B Id
+from the eleven-character [id] that yt\-dlp appends.
+.PP
+Bare patterns do not search either track.
+.SS Aliases
+.TP
+.B @when
+File/Modified, File/Created, Encoded_Date, Tagged_Date, Recorded_Date,
+Released_Date, Original/Released_Date, Mastered_Date, DATE, Path/When.
+.TP
+.B @who
+Performer, Artist, Publisher, Director, Composer, Author, Channel.
+.TP
+.B @name
+File/Name, Title, Movie, Track, Album.
+.PP
+An alias matches if any of its fields does, and the output names the
+field that matched.
+.SH EXIT STATUS
+0 if any file was selected, 1 if none was, 2 if an error occurred.
+With
+.BR \-q ,
+a match gives 0 even if an error also occurred.
+.SH ENVIRONMENT
+On Unix, file names reach MediaInfoLib through the C library's locale
+conversion, so mediagrep selects a UTF-8 locale for
+.B LC_CTYPE
+itself: the one in the environment, else C.UTF-8, else en_US.UTF-8.
+.SH EXAMPLES
+Every file in a tree whose metadata mentions a channel:
+.PP
+.RS
+mediagrep \-ril "practical engineering" ~/Videos
+.RE
+.PP
+Long, high-resolution videos:
+.PP
+.RS
+mediagrep \-r \-e \(aqDuration > 1h30m and Video/Height >= 1080\(aq .
+.RE
+.PP
+Move one publisher's videos into its own directory, safely with any
+file name:
+.PP
+.RS
+mediagrep \-il0e \(aqartist ~ business.insider\(aq * | xargs \-0 mv \-t "Business Insider/"
+.RE
+.PP
+Anything dated 2024 by any measure:
+.PP
+.RS
+mediagrep \-rl \-e \(aq@when = 2024\(aq .
+.RE
+.SH NOTES
+Regular expressions use the C++ standard library. With GCC's library,
+a regular expression is not applied to values longer than 256 KB, and a
+warning says so.
+.SH SEE ALSO
+.BR grep (1),
+.BR mediainfo (1)
+.SH AUTHORS
+Tyler MacDonald and contributors.
+<https://github.com/postmaxin/mediagrep>

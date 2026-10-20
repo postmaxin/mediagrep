@@ -92,7 +92,14 @@ target_link_libraries(mediagrep_core PUBLIC Threads::Threads)
 add_executable(mediagrep src/main.cpp)
 target_link_libraries(mediagrep PRIVATE mediagrep_core)
 target_compile_definitions(mediagrep PRIVATE MEDIAGREP_VERSION="${PROJECT_VERSION}")
-install(TARGETS mediagrep RUNTIME DESTINATION bin)
+include(GNUInstallDirs)
+install(TARGETS mediagrep RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# The man page, with the version filled in.
+configure_file(docs/mediagrep.1.in ${CMAKE_CURRENT_BINARY_DIR}/mediagrep.1 @ONLY)
+if(NOT WIN32)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mediagrep.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+endif()
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -102,6 +109,7 @@ if(MEDIAGREP_BUILD_TESTS)
     add_executable(mediagrep_tests
         tests/main.cpp
         tests/test_cli.cpp
+        tests/test_docs.cpp
         tests/test_eval.cpp
         tests/test_file_track.cpp
         tests/test_fsys.cpp
@@ -120,6 +128,8 @@ if(MEDIAGREP_BUILD_TESTS)
     target_compile_definitions(mediagrep_tests PRIVATE
         MEDIAGREP_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
         MEDIAGREP_UNICODE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/unicode"
+        MEDIAGREP_MANPAGE="${CMAKE_CURRENT_BINARY_DIR}/mediagrep.1"
+        MEDIAGREP_VERSION_FOR_TESTS="${PROJECT_VERSION}"
         MEDIAGREP_BINARY="$<TARGET_FILE:mediagrep>")
     if(MSVC)
         target_compile_definitions(mediagrep_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
