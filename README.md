@@ -77,7 +77,8 @@ not control cannot run code from it.
 - **macOS:** next to the `mediagrep` binary, then the soname through the
   system loader, then the same fixed directories.
 - **Windows:** the directory of `mediagrep.exe` and the system
-  directories, then `PATH`.
+  directories, then the Windows directory and `PATH`. The current
+  directory is never searched.
 - A library path given with `-DMEDIAGREP_MEDIAINFO_LIBRARY` is tried
   as given, so use an absolute path or a bare soname; a relative path
   such as `./libmediainfo.so.0` is refused.

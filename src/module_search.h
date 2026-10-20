@@ -14,8 +14,11 @@
 //
 // Windows: the application directory and the system directories first
 // (LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS),
-// then plain LoadLibrary so a DLL on PATH still works; under
-// SafeDllSearchMode that puts the current directory after the system ones.
+// then plain LoadLibrary so a DLL on PATH still works. Before that
+// fallback SetDllDirectoryW(L"") removes the current directory from the
+// standard search order, which is then: the application directory, the
+// system directories, the Windows directory, PATH. Never the current
+// directory.
 #pragma once
 
 #include <cstring>
@@ -40,18 +43,27 @@ inline bool isTrustedModuleName(const char* name) {
 
 #ifdef _WIN32
 
+// An empty string removes the current directory from the standard search
+// order for the rest of the process (see SetDllDirectory in the Windows
+// docs). Called before every fallback; it is cheap and idempotent.
+inline void dropCurrentDirectoryFromSearch() { ::SetDllDirectoryW(L""); }
+
 inline HMODULE loadModule(const wchar_t* name) {
     HMODULE m = ::LoadLibraryExW(name, nullptr,
                                  LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
                                      LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
-    return m ? m : ::LoadLibraryW(name);
+    if (m) return m;
+    dropCurrentDirectoryFromSearch();
+    return ::LoadLibraryW(name);
 }
 
 inline HMODULE loadModule(const char* name) {
     HMODULE m = ::LoadLibraryExA(name, nullptr,
                                  LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
                                      LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
-    return m ? m : ::LoadLibraryA(name);
+    if (m) return m;
+    dropCurrentDirectoryFromSearch();
+    return ::LoadLibraryA(name);
 }
 
 #else
