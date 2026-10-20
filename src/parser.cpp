@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include <cctype>
+#include <limits>
 #include <utility>
 
 namespace mediagrep {
@@ -66,7 +67,12 @@ private:
                 throw ParseError(tok.offset, "unterminated string");
             const char c = text_[pos_++];
             if (c == quote) return tok;
-            if (c == '\\' && pos_ < text_.size()) {
+            // A backslash escapes only the quote that delimits the string
+            // and another backslash. Anything else is kept, backslash and
+            // all, because the string is usually a regex: "^\d+$" must reach
+            // the regex engine as written.
+            if (c == '\\' && pos_ < text_.size() &&
+                (text_[pos_] == quote || text_[pos_] == '\\')) {
                 tok.text += text_[pos_++];
                 continue;
             }
@@ -214,8 +220,13 @@ private:
             ++i;
             const std::size_t digitsAt = i;
             std::size_t index = 0;
-            while (i < word.size() && std::isdigit(static_cast<unsigned char>(word[i])))
-                index = index * 10 + static_cast<std::size_t>(word[i++] - '0');
+            while (i < word.size() && std::isdigit(static_cast<unsigned char>(word[i]))) {
+                const auto digit = static_cast<std::size_t>(word[i] - '0');
+                if (index > (std::numeric_limits<std::size_t>::max() - digit) / 10)
+                    throw ParseError(offset + digitsAt, "track index is too large");
+                index = index * 10 + digit;
+                ++i;
+            }
             if (i == digitsAt || index == 0)
                 throw ParseError(offset + digitsAt, "track index must be a number >= 1");
             if (i >= word.size() || word[i] != ']')
