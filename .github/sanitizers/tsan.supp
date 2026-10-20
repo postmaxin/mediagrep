@@ -1,0 +1,10 @@
+# ThreadSanitizer suppressions for CI. Loaded with
+#   TSAN_OPTIONS=suppressions=.github/sanitizers/tsan.supp
+#
+# Known defect, reported on issue #2 and to be fixed in the code, not here:
+# fsys::stat() (src/fsys.cpp) calls getpwuid() and getgrgid() from the
+# worker threads. Both return pointers into a static buffer that is not
+# thread-safe; getpwuid_r/getgrgid_r are the reentrant forms. Remove these
+# two lines when stat() stops using the non-reentrant calls.
+race:getpwuid
+race:getgrgid

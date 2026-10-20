@@ -1,0 +1,36 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so new queries run against code that has not changed.
+    - cron: "17 4 * * 1"
+
+jobs:
+  analyze:
+    name: CodeQL (C++)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MediaInfoLib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmediainfo-dev libmediainfo0v5 ninja-build
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: c-cpp
+          build-mode: manual
+      # CodeQL watches this build. Tests are built too, so they are analyzed.
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:c-cpp"

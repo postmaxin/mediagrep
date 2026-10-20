@@ -1,0 +1,1 @@
+Video/Height < 1000 and not Audio/Language = ja
