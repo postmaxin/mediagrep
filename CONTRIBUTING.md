@@ -32,6 +32,48 @@ unexplained binary.
 CI builds and tests every push on Linux, macOS and Windows, with the
 library both loaded at runtime and linked at build time.
 
+## Analysis jobs
+
+Besides the build and test matrix, CI runs these on every push and pull
+request (`.github/workflows/analysis.yml`, and `codeql.yml` for CodeQL).
+Each can be run locally on Linux; use a separate build directory.
+
+- **ASan + UBSan.** Builds with `-DMEDIAGREP_SANITIZE=address,undefined`
+  and runs the whole test suite. Undefined behavior aborts. Run the tests
+  with `LSAN_OPTIONS=suppressions=.github/sanitizers/lsan.supp`, which
+  hides leaks that libmediainfo makes while loading.
+- **ThreadSanitizer.** Builds with `-DMEDIAGREP_SANITIZE=thread` and runs
+  the suite. If it aborts with "unexpected memory mapping", run
+  `sudo sysctl vm.mmap_rnd_bits=28` or start it under `setarch -R`. Run
+  with `TSAN_OPTIONS=suppressions=.github/sanitizers/tsan.supp`. CI skips
+  one test that crashes under TSan only; see the workflow.
+- **clang-tidy.** Configure with clang and
+  `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, build once, then
+  `clang-tidy -p build src/*.cpp tests/*.cpp`. The checks are in
+  `.clang-tidy`: `bugprone-*`, `concurrency-*` and `cert-*`, every
+  warning an error, with the noisy checks off and a reason beside each.
+  `third_party/` is not checked.
+- **CodeQL.** The C++ queries run on pushes to `main`, on pull requests
+  to `main` and weekly. Results appear under the repository's Security
+  tab.
+- **Fuzzing.** `fuzz/` holds libFuzzer targets for the expression parser
+  (`fuzz_parser`), the unit, size, duration and date operands
+  (`fuzz_units`) and the file name recognizer (`fuzz_path`). They are off
+  by default; they need clang:
+
+  ```sh
+  cmake -S . -B build-fuzz -G Ninja -DCMAKE_CXX_COMPILER=clang++ \
+        -DMEDIAGREP_BUILD_FUZZERS=ON -DMEDIAGREP_BUILD_TESTS=OFF
+  cmake --build build-fuzz
+  mkdir corpus && ./build-fuzz/fuzz/fuzz_parser -max_total_time=60 corpus fuzz/seeds/parser
+  ```
+
+  CI runs each target for 60 seconds. A crash is uploaded as a workflow
+  artifact; reproduce it with `./fuzz_parser crash-FILE`.
+
+A suppression or a disabled check needs a comment saying why. Do not add
+one to hide a real defect; file an issue first and link it.
+
 ## Changes
 
 - Add a test that fails without your change.

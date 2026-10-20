@@ -1,0 +1,8 @@
+# LeakSanitizer suppressions for CI. Loaded with
+#   LSAN_OPTIONS=suppressions=.github/sanitizers/lsan.supp
+#
+# libmediainfo allocates a couple of objects at load time (reached from
+# dlsym) and never frees them. They are in MediaInfoLib, not in mediagrep,
+# and every process that loads the library reports them, so each run of
+# the mediagrep binary would exit non-zero and the CLI tests would fail.
+leak:libmediainfo.so

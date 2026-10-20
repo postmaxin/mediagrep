@@ -9,6 +9,11 @@ option(MEDIAGREP_BUILD_TESTS "Build the test suite" ON)
 option(MEDIAGREP_LINK_STATIC
        "Link MediaInfoLib at build time instead of loading it at runtime" OFF)
 
+option(MEDIAGREP_BUILD_FUZZERS
+       "Build the libFuzzer targets in fuzz/ (needs clang)" OFF)
+set(MEDIAGREP_SANITIZE "" CACHE STRING
+    "Sanitizers to build with, e.g. address,undefined or thread (GCC or Clang)")
+
 # ---------------------------------------------------------------------------
 # Core library: everything except main(), so tests can link it.
 # ---------------------------------------------------------------------------
@@ -39,6 +44,24 @@ if(MSVC)
     target_compile_options(mediagrep_core PUBLIC /W4 /utf-8 /EHsc)
 else()
     target_compile_options(mediagrep_core PUBLIC -Wall -Wextra -Wpedantic)
+endif()
+
+if(MEDIAGREP_SANITIZE AND NOT MSVC)
+    # PUBLIC so every target that links the core is instrumented too.
+    target_compile_options(mediagrep_core PUBLIC
+        -fsanitize=${MEDIAGREP_SANITIZE} -fno-omit-frame-pointer -g)
+    target_link_options(mediagrep_core PUBLIC -fsanitize=${MEDIAGREP_SANITIZE})
+endif()
+
+if(MEDIAGREP_BUILD_FUZZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "MEDIAGREP_BUILD_FUZZERS needs clang (libFuzzer)")
+    endif()
+    # Instrument the library for coverage and the sanitizers; the fuzz
+    # targets add the libFuzzer runtime themselves.
+    target_compile_options(mediagrep_core PUBLIC
+        -fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer -g)
+    target_link_options(mediagrep_core PUBLIC -fsanitize=address,undefined)
 endif()
 
 if(MEDIAGREP_LINK_STATIC)
@@ -137,4 +160,8 @@ if(MEDIAGREP_BUILD_TESTS)
     target_link_libraries(mediagrep_tests PRIVATE mediagrep_core)
     add_dependencies(mediagrep_tests mediagrep)
     add_test(NAME unit COMMAND mediagrep_tests)
+endif()
+
+if(MEDIAGREP_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
 endif()

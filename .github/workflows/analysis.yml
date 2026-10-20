@@ -1,0 +1,115 @@
+name: Analysis
+
+# Sanitizers, clang-tidy and fuzzing. CodeQL is in codeql.yml. CONTRIBUTING.md
+# says how to run each of these locally.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  asan:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    env:
+      # libmediainfo leaks a few objects at load time, which would fail every
+      # run of the binary; see the file for details.
+      LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/sanitizers/lsan.supp
+      UBSAN_OPTIONS: print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MediaInfoLib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmediainfo-dev libmediainfo0v5 ninja-build
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DMEDIAGREP_SANITIZE=address,undefined
+          -DCMAKE_CXX_FLAGS=-fno-sanitize-recover=undefined
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-latest
+    env:
+      TSAN_OPTIONS: second_deadlock_stack=1 suppressions=${{ github.workspace }}/.github/sanitizers/tsan.supp
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MediaInfoLib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmediainfo-dev libmediainfo0v5 ninja-build
+      # TSan aborts with "unexpected memory mapping" when the kernel
+      # randomizes mmap addresses over more than 28 bits.
+      - name: Lower mmap ASLR entropy
+        run: sudo sysctl vm.mmap_rnd_bits=28
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DMEDIAGREP_SANITIZE=thread
+      - name: Build
+        run: cmake --build build
+      # The excluded test feeds 200,000 characters to std::regex on a worker
+      # thread and segfaults under TSan only (it passes under ASan and plain
+      # builds). Most likely TSan's larger stack frames overflow the stack the
+      # regex limit was sized for. Tracked in issue #7: libstdc++ is moving to its
+      # non-recursive __polynomial regex executor; remove the exclusion then.
+      - name: Test
+        run: ./build/mediagrep_tests -tce='pool workers run backtracking*'
+
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmediainfo-dev libmediainfo0v5 ninja-build clang clang-tidy
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build
+        # Generates the man page the tests include, and checks the code builds.
+        run: cmake --build build
+      - name: clang-tidy
+        # Checks and exclusions are in .clang-tidy. third_party/ is not listed.
+        run: clang-tidy -p build --quiet src/*.cpp tests/*.cpp
+
+  fuzz:
+    name: Fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parser, units, path]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmediainfo-dev libmediainfo0v5 ninja-build clang
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_CXX_COMPILER=clang++ -DMEDIAGREP_BUILD_FUZZERS=ON
+          -DMEDIAGREP_BUILD_TESTS=OFF
+      - name: Build
+        run: cmake --build build --target fuzz_${{ matrix.target }}
+      - name: Fuzz for 60 seconds
+        run: |
+          mkdir -p corpus crashes
+          seeds=fuzz/seeds/${{ matrix.target }}
+          [ -d "$seeds" ] || seeds=
+          ./build/fuzz/fuzz_${{ matrix.target }} -max_total_time=60 -timeout=10 \
+            -rss_limit_mb=2048 -artifact_prefix=crashes/ corpus $seeds
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: crashes/
