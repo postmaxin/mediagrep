@@ -129,11 +129,12 @@ is not satisfied by the folder it was downloaded into. It is not parsed
 as an expression, so regex metacharacters never collide with the
 expression grammar. Comparisons and boolean operators require `-e`.
 
-Regexes use the C++ standard library. GCC's implementation needs stack
-in proportion to the length of the text for patterns like `a.*b`, so
-there mediagrep does not apply a regex to values longer than 256 KB, and
-says so on stderr when it skips one. Such values are rare outside
-embedded documents. `-i` folds ASCII letters only.
+Regexes use the C++ standard library. With GCC's, mediagrep selects the
+executor that does not recurse, so any pattern runs on a value of any
+length (a YouTube description, say) without crashing. That executor
+does not support back-references (`(a)\1`); a pattern with one is not
+applied to values longer than 256 KB, and mediagrep says so on stderr
+when it skips one. `-i` folds ASCII letters only.
 
 ### Expressions
 

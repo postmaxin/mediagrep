@@ -134,7 +134,15 @@ struct Result {
 struct Evaluator::Impl {
     const Expr* root;
     EvalOptions options;
-    std::unordered_map<const Expr*, std::regex> regexes;
+    // `bounded` is set for regexes that use the default executor, which
+    // libstdc++ runs recursively; those are subject to the thread's length
+    // limit. The others run in time and stack that do not depend on the
+    // length of the text.
+    struct Compiled {
+        std::regex re;
+        bool bounded = true;
+    };
+    std::unordered_map<const Expr*, Compiled> regexes;
 
     Impl(const Expr& expr, EvalOptions opts) : root(&expr), options(opts) { compile(expr); }
 
@@ -153,7 +161,21 @@ struct Evaluator::Impl {
         auto flags = std::regex::ECMAScript;
         if (options.ignoreCase) flags |= std::regex::icase;
         try {
-            regexes.emplace(&e, std::regex(e.value, flags));
+#if defined(__GLIBCXX__)
+            // libstdc++'s default executor recurses once per input character,
+            // and per level of group nesting at that, so no length limit is
+            // safe for every pattern. Its breadth-first executor does not
+            // recurse, but it rejects back-references: those fall through
+            // to the default executor and the length limit. Matching only
+            // asks yes or no, so both executors give the same answer.
+            try {
+                const auto polynomial = flags | std::regex_constants::__polynomial;
+                regexes.emplace(&e, Compiled{std::regex(e.value, polynomial), false});
+                return;
+            } catch (const std::regex_error&) {
+            }
+#endif
+            regexes.emplace(&e, Compiled{std::regex(e.value, flags), true});
         } catch (const std::regex_error& err) {
             throw EvalError("invalid regex '" + e.value + "': " + err.what());
         }
@@ -185,18 +207,20 @@ struct Evaluator::Impl {
     }
 
     // Searches `value` with e's regex. Returns nullopt, with a warning, when
-    // the value is too long for this thread's stack (libstdc++ recurses per
-    // character) or the engine gives up (MSVC's error_stack).
+    // the value is too long for this thread's stack (a regex libstdc++ must
+    // run recursively, such as one with a back-reference) or the engine gives
+    // up (MSVC's error_stack).
     std::optional<bool> search(const Expr& e, const std::string& value,
                                std::vector<std::string>& warnings) const {
+        const Compiled& compiled = regexes.at(&e);
         const std::size_t limit = threadRegexLimit();
-        if (value.size() > limit) {
+        if (compiled.bounded && value.size() > limit) {
             warnOnce(warnings, "regex '" + e.value + "' was not applied to values longer than " +
                                    std::to_string(limit) + " characters");
             return std::nullopt;
         }
         try {
-            return std::regex_search(value, regexes.at(&e));
+            return std::regex_search(value, compiled.re);
         } catch (const std::regex_error& err) {
             warnOnce(warnings, "regex '" + e.value + "' gave up on a long value (" + err.what() + ")");
             return std::nullopt;
