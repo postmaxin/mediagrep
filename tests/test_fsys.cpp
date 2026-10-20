@@ -82,7 +82,7 @@ TEST_CASE("stat on a missing path yields nothing") {
 TEST_CASE("errorMessage describes an errno value") {
     const std::string enoent = fsys::errorMessage(ENOENT);
     CHECK_FALSE(enoent.empty());
-    CHECK(enoent.find("No such file") != std::string::npos);
+    CHECK(enoent.find("such file") != std::string::npos);  // "No such" / "no such"
     CHECK_FALSE(fsys::errorMessage(999999).empty());  // unknown values still get text
 }
 
