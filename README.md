@@ -120,6 +120,12 @@ is not satisfied by the folder it was downloaded into. It is not parsed
 as an expression, so regex metacharacters never collide with the
 expression grammar. Comparisons and boolean operators require `-e`.
 
+Regexes use the C++ standard library. GCC's implementation needs stack
+in proportion to the length of the text for patterns like `a.*b`, so
+there mediagrep does not apply a regex to values longer than 256 KB, and
+says so on stderr when it skips one. Such values are rare outside
+embedded documents. `-i` folds ASCII letters only.
+
 ### Expressions
 
 ```
