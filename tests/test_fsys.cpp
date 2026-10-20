@@ -1,4 +1,8 @@
 #include <algorithm>
+#include <atomic>
+#include <cerrno>
+#include <thread>
+#include <vector>
 
 #include "doctest.h"
 #include "fsys.h"
@@ -73,4 +77,33 @@ TEST_CASE("stat reports size and modification time") {
 
 TEST_CASE("stat on a missing path yields nothing") {
     CHECK_FALSE(fsys::stat(fsys::join(kFixtures, "nope.mkv")));
+}
+
+TEST_CASE("errorMessage describes an errno value") {
+    const std::string enoent = fsys::errorMessage(ENOENT);
+    CHECK_FALSE(enoent.empty());
+    CHECK(enoent.find("No such file") != std::string::npos);
+    CHECK_FALSE(fsys::errorMessage(999999).empty());  // unknown values still get text
+}
+
+// Run under ThreadSanitizer (the Analysis workflow's TSan job): the worker
+// threads call stat() concurrently, and its owner/group lookups must not
+// share a static buffer.
+TEST_CASE("stat and errorMessage are safe to call from several threads") {
+    const std::string path = fsys::join(kFixtures, "talk.mkv");
+    const auto expected = fsys::stat(path);
+    REQUIRE(expected);
+    std::atomic<int> mismatches{0};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < 4; ++t)
+        threads.emplace_back([&] {
+            for (int i = 0; i < 200; ++i) {
+                const auto info = fsys::stat(path);
+                if (!info || info->owner != expected->owner || info->group != expected->group)
+                    ++mismatches;
+                if (fsys::errorMessage(ENOENT).empty()) ++mismatches;
+            }
+        });
+    for (std::thread& th : threads) th.join();
+    CHECK(mismatches == 0);
 }

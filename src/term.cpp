@@ -60,7 +60,8 @@ bool stderrIsTerminal() { return isatty(STDERR_FILENO) != 0; }
 std::size_t stderrWidth() {
     struct winsize ws {};
     if (ioctl(STDERR_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) return ws.ws_col;
-    if (const char* columns = std::getenv("COLUMNS")) {
+    // getenv races only with setenv/putenv, which this program never calls.
+    if (const char* columns = std::getenv("COLUMNS")) {  // NOLINT(concurrency-mt-unsafe)
         const long v = std::strtol(columns, nullptr, 10);
         if (v > 0 && v < 10000) return static_cast<std::size_t>(v);
     }

@@ -40,6 +40,10 @@ struct FileInfo {
 // stat() following symlinks. nullopt if the file cannot be examined.
 std::optional<FileInfo> stat(const std::string& path);
 
+// The message for an errno value, like strerror() but safe to call from
+// several threads at once.
+std::string errorMessage(int err);
+
 // dir + separator + name, without doubling a separator `dir` already ends
 // with. An empty `dir` yields `name` alone.
 std::string join(const std::string& dir, const std::string& name);

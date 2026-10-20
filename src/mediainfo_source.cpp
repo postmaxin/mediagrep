@@ -43,6 +43,9 @@ bool setUtf8Ctype() {
 #ifdef _WIN32
     return true;  // the wide API is used directly; no conversion involved
 #else
+    // setlocale and nl_langinfo are not thread-safe, but this runs exactly
+    // once, under call_once, before any worker uses the locale.
+    // NOLINTBEGIN(concurrency-mt-unsafe)
     for (const char* name : {"", "C.UTF-8", "C.utf8", "en_US.UTF-8", "en_US.utf8"}) {
         if (!std::setlocale(LC_CTYPE, name)) continue;
         std::string codeset = nl_langinfo(CODESET);
@@ -50,6 +53,7 @@ bool setUtf8Ctype() {
         if (codeset == "UTF-8" || codeset == "UTF8") return true;
     }
     std::setlocale(LC_CTYPE, "C");
+    // NOLINTEND(concurrency-mt-unsafe)
     return false;
 #endif
 }
