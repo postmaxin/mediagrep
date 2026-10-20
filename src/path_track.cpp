@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <optional>
 #include <regex>
+#include <utility>
 
 namespace mediagrep {
 
@@ -99,22 +100,34 @@ SeasonEpisode findSeasonEpisode(const std::string& name, const std::string& dire
     return se;
 }
 
-std::optional<std::string> findId(const std::string& name) {
-    static const std::regex id(R"(\[([A-Za-z0-9_-]{11})\])");
+// yt-dlp appends " [id]" just before the extension(s), so the id is the
+// bracketed 11-character word at the end of the name, optionally followed by
+// extensions such as ".f137.mp4" or ".en.vtt". A bracketed word elsewhere is
+// part of the title. `range` receives the "[id]" token, brackets included.
+std::optional<std::string> findId(const std::string& name,
+                                  std::pair<std::size_t, std::size_t>* range = nullptr) {
+    static const std::regex id(R"(\[([A-Za-z0-9_-]{11})\]((?:\.[A-Za-z0-9]+)*)$)");
     std::smatch m;
-    if (std::regex_search(name, m, id)) return m[1].str();
-    return std::nullopt;
+    if (!std::regex_search(name, m, id)) return std::nullopt;
+    if (range) *range = {static_cast<std::size_t>(m.position(0)), 13};
+    return m[1].str();
 }
 
 }  // namespace
 
 std::vector<FieldValue> recognizePath(const std::string& name, const std::string& directory) {
     std::vector<FieldValue> out;
-    if (const auto when = findDate(name)) out.push_back({"When", *when, ValueType::Text, ""});
-    const SeasonEpisode se = findSeasonEpisode(name, directory);
+    // The id is random text; mask it so a year or SxxEyy inside it, set off
+    // by '_' or '-', is not mistaken for a date or an episode.
+    std::string masked = name;
+    std::pair<std::size_t, std::size_t> idRange;
+    const auto id = findId(name, &idRange);
+    if (id) masked.replace(idRange.first, idRange.second, idRange.second, ' ');
+    if (const auto when = findDate(masked)) out.push_back({"When", *when, ValueType::Text, ""});
+    const SeasonEpisode se = findSeasonEpisode(masked, directory);
     if (se.season) out.push_back({"Season", std::to_string(*se.season), ValueType::Integer, ""});
     if (se.episode) out.push_back({"Episode", std::to_string(*se.episode), ValueType::Integer, ""});
-    if (const auto id = findId(name)) out.push_back({"Id", *id, ValueType::Text, ""});
+    if (id) out.push_back({"Id", *id, ValueType::Text, ""});
     return out;
 }
 

@@ -237,8 +237,12 @@ only unambiguous forms are claimed: `When` from `YYYY-MM-DD` (with `-`,
 or a delimited year 1900..2099, a full date winning over a bare year;
 `Season` and `Episode` from `S01E02` or `1x02`, the season also from a
 `Season N` or `SNN` parent directory; `Id` from the eleven-character
-`[id]` yt-dlp appends. "Delimited" means bounded by non-alphanumerics,
-so `1080p` and the inside of an id never count. Who-versus-title is not
+`[id]` yt-dlp appends, which is the bracketed word at the end of the name
+before any extensions (`.f137.mp4`, `.en.vtt`), not the first bracketed
+word. The id is masked out before the date and season/episode
+recognizers run, so a year or `S01E02` inside a random id is not read as
+one. "Delimited" means bounded by non-alphanumerics, so `1080p` never
+counts. Who-versus-title is not
 guessed. Both File and Path are skipped by bare patterns.
 
 Aliases are query-side names behind an `@` sigil, so they can never

@@ -18,7 +18,9 @@ namespace mediagrep {
 //            year 1900..2099. The first full date wins over a bare year.
 //   Season   from S01E02, 1x02, or a "Season 2" / "S02" parent directory
 //   Episode  from S01E02 or 1x02
-//   Id       the 11-character [id] yt-dlp appends
+//   Id       the 11-character [id] yt-dlp appends: the bracketed word at the
+//            end of the name, before any extensions. It is masked out before
+//            the date and season/episode recognizers run.
 // Season and Episode are integers without leading zeros.
 std::vector<FieldValue> recognizePath(const std::string& name, const std::string& directory);
 

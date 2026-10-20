@@ -197,7 +197,7 @@ wherever it appears and puts it in a `Path` track:
 |---|---|
 | `Path/When` | `2024-03-01` (also with `_` or `.`), `20240301` with a plausible month and day, `(2019)`, or a delimited year 1900 to 2099. A full date wins over a bare year. |
 | `Path/Season`, `Path/Episode` | `S01E02` or `1x02`; the season also from a `Season 2` or `S02` parent directory |
-| `Path/Id` | the eleven-character `[id]` yt-dlp appends |
+| `Path/Id` | the eleven-character `[id]` yt-dlp appends: the last bracketed word, before any extensions |
 
 Delimited means `1080p`, `2160p` and the inside of an id never count.
 Who-versus-title is deliberately not guessed: `Artist - Title` and
