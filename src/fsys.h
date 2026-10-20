@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <ctime>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -36,7 +37,9 @@ std::optional<FileId> directoryId(const std::string& path, std::string* error = 
 bool isSymlink(const std::string& path);
 
 // Fills `names` with the entries of a directory, excluding "." and "..",
-// in no particular order. Returns false and sets `error` on failure.
+// in no particular order. Returns false and sets `error` on failure,
+// including a failure part-way through the listing (a dropped network
+// share); `names` then holds only what was read before it.
 bool listDirectory(const std::string& path, std::vector<std::string>& names,
                    std::string* error = nullptr);
 
@@ -63,5 +66,30 @@ std::string join(const std::string& dir, const std::string& name);
 
 // The last path component. Both '/' and, on Windows, '\\' separate.
 std::string fileName(std::string_view path);
+
+// Pieces of the platform backends with no platform dependence of their own,
+// exposed so tests can reach them on any system.
+namespace detail {
+
+// Returns the next directory entry name, or nullopt with `err` set to 0 at the
+// end of the directory or to the OS error code if reading failed.
+using EntryReader = std::function<std::optional<std::string>(int& err)>;
+
+// Reads every entry from `next` into `names`, dropping "." and "..". False,
+// with `error` set to the OS message, if `next` reports an error: a failed
+// read is not the end of the directory.
+bool collectEntries(const EntryReader& next, std::vector<std::string>& names,
+                    std::string* error = nullptr);
+
+// Whether a failed FindFirstFileW (`first`) or FindNextFileW with Win32 error
+// `code` just means there are no (more) entries. FILE_NOT_FOUND on the first
+// call is an empty directory without "." and "..", such as a drive root.
+bool findFailureEndsListing(unsigned long code, bool first);
+
+// A Windows FILETIME (100 ns ticks since 1601-01-01) as Unix time, rounded
+// toward the past. nullopt for 0, which Windows uses for "not recorded".
+std::optional<std::time_t> fileTimeToUnix(std::uint64_t ticks);
+
+}  // namespace detail
 
 }  // namespace mediagrep::fsys

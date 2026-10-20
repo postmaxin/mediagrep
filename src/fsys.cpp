@@ -1,6 +1,7 @@
 #include "fsys.h"
 
 #include <system_error>
+#include <utility>
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -65,6 +66,37 @@ std::string errorMessage(int err) {
 #endif
 }
 
+namespace detail {
+
+bool collectEntries(const EntryReader& next, std::vector<std::string>& names, std::string* error) {
+    for (;;) {
+        int err = 0;
+        std::optional<std::string> name = next(err);
+        if (!name) {
+            if (err == 0) return true;
+            if (error) *error = std::system_category().message(err);
+            return false;
+        }
+        if (*name != "." && *name != "..") names.push_back(std::move(*name));
+    }
+}
+
+bool findFailureEndsListing(unsigned long code, bool first) {
+    constexpr unsigned long kFileNotFound = 2;   // ERROR_FILE_NOT_FOUND
+    constexpr unsigned long kNoMoreFiles = 18;   // ERROR_NO_MORE_FILES
+    return code == kNoMoreFiles || (first && code == kFileNotFound);
+}
+
+std::optional<std::time_t> fileTimeToUnix(std::uint64_t ticks) {
+    if (ticks == 0) return std::nullopt;
+    constexpr std::int64_t kSecondsFrom1601To1970 = 11644473600;
+    // Whole seconds first, then the signed offset, so dates before 1970 come out negative.
+    return static_cast<std::time_t>(static_cast<std::int64_t>(ticks / 10000000ULL) -
+                                    kSecondsFrom1601To1970);
+}
+
+}  // namespace detail
+
 #ifdef _WIN32
 
 std::optional<FileInfo> stat(const std::string& path) {
@@ -81,9 +113,7 @@ std::optional<FileInfo> stat(const std::string& path) {
         ULARGE_INTEGER u;
         u.LowPart = ft.dwLowDateTime;
         u.HighPart = ft.dwHighDateTime;
-        if (u.QuadPart == 0) return std::nullopt;
-        // FILETIME counts 100 ns intervals since 1601-01-01.
-        return static_cast<std::time_t>((u.QuadPart - 116444736000000000ULL) / 10000000ULL);
+        return detail::fileTimeToUnix(u.QuadPart);
     };
     FileInfo fi;
     fi.size = (static_cast<std::uint64_t>(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
@@ -149,16 +179,23 @@ bool listDirectory(const std::string& path, std::vector<std::string>& names, std
     pattern += L'*';
     WIN32_FIND_DATAW data;
     HANDLE h = FindFirstFileW(pattern.c_str(), &data);
-    if (h == INVALID_HANDLE_VALUE) {
-        if (error) *error = lastErrorMessage();
-        return false;
-    }
-    do {
-        const std::string name = narrow(data.cFileName);
-        if (name != "." && name != "..") names.push_back(name);
-    } while (FindNextFileW(h, &data));
-    FindClose(h);
-    return true;
+    bool first = true;
+    // A failure ends the listing only if it says so; anything else (a network
+    // error on an SMB share) must not look like a shorter directory.
+    const bool ok = detail::collectEntries(
+        [&](int& err) -> std::optional<std::string> {
+            err = 0;
+            const bool wasFirst = std::exchange(first, false);
+            if (wasFirst ? h == INVALID_HANDLE_VALUE : !FindNextFileW(h, &data)) {
+                const DWORD code = GetLastError();
+                if (!detail::findFailureEndsListing(code, wasFirst)) err = static_cast<int>(code);
+                return std::nullopt;
+            }
+            return narrow(data.cFileName);
+        },
+        names, error);
+    if (h != INVALID_HANDLE_VALUE) FindClose(h);
+    return ok;
 }
 
 std::string join(const std::string& dir, const std::string& name) {
@@ -227,13 +264,21 @@ bool listDirectory(const std::string& path, std::vector<std::string>& names, std
         if (error) *error = errorMessage(errno);
         return false;
     }
-    // readdir is safe across threads when each uses its own DIR*, as here.
-    while (const dirent* entry = ::readdir(dir)) {  // NOLINT(concurrency-mt-unsafe)
-        const std::string name = entry->d_name;
-        if (name != "." && name != "..") names.push_back(name);
-    }
+    // readdir returns null at the end and on error alike; only errno tells which.
+    // It is safe across threads when each uses its own DIR*, as here.
+    const bool ok = detail::collectEntries(
+        [&](int& err) -> std::optional<std::string> {
+            errno = 0;
+            const dirent* entry = ::readdir(dir);  // NOLINT(concurrency-mt-unsafe)
+            if (!entry) {
+                err = errno;
+                return std::nullopt;
+            }
+            return std::string(entry->d_name);
+        },
+        names, error);
     ::closedir(dir);
-    return true;
+    return ok;
 }
 
 std::string join(const std::string& dir, const std::string& name) {
