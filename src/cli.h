@@ -12,6 +12,7 @@ namespace mediagrep {
 
 struct Options {
     enum class Output { Fields, FilesWithMatches, FilesWithoutMatch, Count };
+    enum class Progress { Auto, On, Off };
 
     std::vector<std::string> expressions;   // -e, ORed together
     std::optional<std::string> pattern;     // first positional when no -e
@@ -28,6 +29,7 @@ struct Options {
     double parseSpeed = 0.0;                // --parse-speed
     std::optional<std::string> fieldsFile;  // --fields FILE
     bool quiet = false;                     // -q
+    Progress progress = Progress::Auto;     // --progress, --no-progress
     bool noMessages = false;                // -s
     bool help = false;                      // --help, -h
     bool version = false;                   // --version

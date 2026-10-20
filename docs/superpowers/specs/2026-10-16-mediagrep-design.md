@@ -135,8 +135,10 @@ implementation of it. Directories are entered only with `-r`, or `-R`
 to also follow symlinks; otherwise a directory argument is an "Is a
 directory" error, as in grep, so a shell glob searches one level
 without surprises. `--include` and
-`--exclude` globs filter by filename. Files are numbered in discovery
-order, dispatched to a queue served by `-j` workers (default: the
+`--exclude` globs filter by filename. The walk runs on its own thread
+and may discover up to 200,000 paths ahead of the workers, so the
+progress total settles early without unbounded memory. Files are
+numbered in discovery order, dispatched to a queue served by `-j` workers (default: the
 smaller of 2 and `hardware_concurrency`, because the bottleneck is disk
 or network seeks and more workers mostly add contention), and results
 are handed to the printer in
@@ -296,6 +298,15 @@ with the grammar. Field comparisons and boolean operators require `-e`.
 | `--fields FILE` | Dump all fields of one file and exit. |
 | `-q` | Quiet: no output, exit status only. |
 | `-s` | Suppress warnings about unreadable files. |
+| `--progress` | Progress on stderr: a line redrawn in place on a terminal, else a log line every 10 s and a summary. Default: on when stderr is a terminal and not `-q`. |
+| `--no-progress` | Never show progress. |
+
+All stdout and stderr writes go through one console object that clears
+the progress line first, so a match or warning never lands mid-line. The
+line stays one column short of the terminal width, counting East Asian
+wide characters as two, so it never wraps, and control characters in
+file names are shown as `?`. On Windows the console is switched to UTF-8
+output for the life of the process so file names print correctly.
 | `--version`, `--help` | The usual. |
 
 Flags borrowed from grep keep grep's meaning.
@@ -376,6 +387,9 @@ src/
   units.{h,cpp}   unit and date parsing
   utf.{h,cpp}     UTF-8 <-> wchar_t shim (UTF-16 on Windows, UTF-32 elsewhere)
   pool.h          OrderedPool: parallel workers, in-order results
+  queue.h         BoundedQueue between the walker thread and the pool
+  progress.{h,cpp}  progress line and log formatting, the console lock
+  term.{h,cpp}    terminal detection and width, Windows UTF-8 console
   cli.{h,cpp}     option parsing and output formatting
 tests/
   doctest.h       vendored

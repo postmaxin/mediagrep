@@ -80,6 +80,13 @@ TEST_CASE("output mode flags") {
     CHECK(parse({"-r", "p", "d"}).followSymlinks == false);
 }
 
+TEST_CASE("--progress and --no-progress override the automatic choice") {
+    CHECK(parse({"pat", "d"}).progress == Options::Progress::Auto);
+    CHECK(parse({"--progress", "pat", "d"}).progress == Options::Progress::On);
+    CHECK(parse({"--no-progress", "pat", "d"}).progress == Options::Progress::Off);
+    CHECK(parse({"--progress", "--no-progress", "pat", "d"}).progress == Options::Progress::Off);
+}
+
 TEST_CASE("-j takes a number, attached or separate") {
     CHECK(parse({"-j", "4", "p", "d"}).jobs == 4);
     CHECK(parse({"-j8", "p", "d"}).jobs == 8);

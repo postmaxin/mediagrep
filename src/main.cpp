@@ -1,8 +1,11 @@
 // mediagrep: grep for media metadata.
+#include <atomic>
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -16,6 +19,9 @@
 #include "mediainfo_source.h"
 #include "parser.h"
 #include "pool.h"
+#include "progress.h"
+#include "queue.h"
+#include "term.h"
 #include "utf.h"
 #include "walker.h"
 
@@ -90,15 +96,31 @@ ExprPtr buildExpression(const Options& options) {
 
 struct Job {
     std::string path;
+    std::size_t root = 0;  // index into Options::paths, for -c
 };
 
 struct Result {
     std::string display;
+    std::size_t root = 0;
     Match match;
     bool isMedia = false;
     bool error = false;
     std::string message;
 };
+
+// Paths the walker may discover ahead of the workers. Lets the progress
+// total settle early on large trees while bounding memory.
+constexpr std::size_t kMaxPendingPaths = 200000;
+
+Progress::Mode progressMode(const Options& options) {
+    switch (options.progress) {
+        case Options::Progress::Off: return Progress::Mode::Off;
+        case Options::Progress::On:
+            return term::stderrIsTerminal() ? Progress::Mode::Line : Progress::Mode::Log;
+        case Options::Progress::Auto: break;
+    }
+    return !options.quiet && term::stderrIsTerminal() ? Progress::Mode::Line : Progress::Mode::Off;
+}
 
 int run(const Options& options) {
     const ExprPtr expr = buildExpression(options);
@@ -120,16 +142,19 @@ int run(const Options& options) {
     const std::size_t jobs = options.jobs ? options.jobs : defaultJobs();
     const char sep = options.nullSeparated ? '\0' : '\n';
 
-    bool anySelected = false;
-    bool anyError = false;
-    std::size_t count = 0;
-    std::set<std::string> warned;
+    Progress progress(progressMode(options), term::stdoutIsTerminal());
+    std::atomic<bool> anySelected{false};
+    std::atomic<bool> anyError{false};
+    std::vector<std::size_t> counts(options.paths.size(), 0);  // emit thread only
+    std::set<std::string> warned;                               // emit thread only
 
     auto work = [&](const Job& job) -> Result {
         thread_local std::unique_ptr<MediaInfoSource> source;
         if (!source) source = std::make_unique<MediaInfoSource>(options.parseSpeed);
+        progress.started(job.path);
         Result r;
         r.display = job.path;
+        r.root = job.root;
         try {
             if (!source->open(job.path)) {
                 r.error = true;
@@ -150,39 +175,58 @@ int run(const Options& options) {
     auto emit = [&](Result&& r) {
         if (r.error) {
             anyError = true;
-            if (!options.noMessages) warn(r.display + ": " + r.message);
+            progress.finished(false, true);
+            if (!options.noMessages) progress.err("mediagrep: " + r.display + ": " + r.message + "\n");
             return;
         }
-        if (!r.isMedia) return;
+        if (!r.isMedia) {
+            progress.finished(false, false);
+            return;
+        }
         for (const std::string& w : r.match.warnings)
-            if (warned.insert(w).second) warn("warning: " + w);
+            if (warned.insert(w).second) progress.err("mediagrep: warning: " + w + "\n");
         const bool selected = options.output == Options::Output::FilesWithoutMatch
                                   ? !r.match.matched
                                   : r.match.matched != options.invert;
-        if (selected) { anySelected = true; ++count; }
-        write(formatFile(options, r.display, r.match));
+        if (selected) {
+            anySelected = true;
+            ++counts[r.root];
+        }
+        progress.finished(selected, false);
+        progress.out(formatFile(options, r.display, r.match));
     };
 
+    // Runs on the walker thread.
     auto onError = [&](const std::string& p, const std::string& message) {
         anyError = true;
-        if (!options.noMessages) warn(p + ": " + message);
+        progress.error();
+        if (!options.noMessages) progress.err("mediagrep: " + p + ": " + message + "\n");
     };
 
-    if (options.output == Options::Output::Count) {
-        for (const std::string& root : options.paths) {
-            count = 0;
-            {
-                OrderedPool<Job, Result> pool(jobs, work, emit);
-                walk({root}, walkOptions, [&](const std::string& p) { pool.submit({p}); }, onError);
-                pool.finish();
-            }
-            if (!options.quiet) write(root + ": " + std::to_string(count) + sep);
+    BoundedQueue<Job> pending(kMaxPendingPaths);
+    std::thread walker([&] {
+        for (std::size_t i = 0; i < options.paths.size(); ++i) {
+            walk({options.paths[i]}, walkOptions,
+                 [&](const std::string& p) {
+                     progress.found();
+                     pending.push({p, i});
+                 },
+                 onError);
         }
-    } else {
+        progress.walkDone();
+        pending.close();
+    });
+    {
         OrderedPool<Job, Result> pool(jobs, work, emit);
-        walk(options.paths, walkOptions, [&](const std::string& p) { pool.submit({p}); }, onError);
+        while (std::optional<Job> job = pending.pop()) pool.submit(std::move(*job));
         pool.finish();
     }
+    walker.join();
+    progress.stop();
+
+    if (options.output == Options::Output::Count && !options.quiet)
+        for (std::size_t i = 0; i < options.paths.size(); ++i)
+            write(options.paths[i] + ": " + std::to_string(counts[i]) + sep);
     std::fflush(stdout);
 
     if (anyError) return 2;
@@ -223,6 +267,7 @@ int realMain(const std::vector<std::string>& args) {
 #ifdef _WIN32
 int wmain(int argc, wchar_t** argv) {
     _setmode(_fileno(stdout), _O_BINARY);
+    term::useUtf8Console();
     std::vector<std::string> args;
     for (int i = 1; i < argc; ++i) args.push_back(narrow(argv[i]));
     return realMain(args);

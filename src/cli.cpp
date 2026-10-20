@@ -43,6 +43,9 @@ std::string usageText() {
         "  --fields FILE    list every field of one file and exit\n"
         "  -q               no output, exit status only\n"
         "  -s               suppress warnings about unreadable files\n"
+        "  --progress       show progress on stderr; the default when stderr is a\n"
+        "                   terminal, as a plain line every 10 s when it is not\n"
+        "  --no-progress    never show progress\n"
         "  -h, --help       this help\n"
         "  --version        version of mediagrep and MediaInfoLib\n"
         "\n"
@@ -100,6 +103,8 @@ std::optional<Options> parseArgs(const std::vector<std::string>& args, std::stri
 
             if (name == "--help") { o.help = true; }
             else if (name == "--version") { o.version = true; }
+            else if (name == "--progress") { o.progress = Options::Progress::On; }
+            else if (name == "--no-progress") { o.progress = Options::Progress::Off; }
             else if (name == "--include") { auto v = value(); if (!v) return std::nullopt; o.include.push_back(*v); }
             else if (name == "--exclude") { auto v = value(); if (!v) return std::nullopt; o.exclude.push_back(*v); }
             else if (name == "--fields") { auto v = value(); if (!v) return std::nullopt; o.fieldsFile = *v; }

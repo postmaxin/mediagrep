@@ -4,6 +4,7 @@
 
 #include "doctest.h"
 #include "pool.h"
+#include "queue.h"
 
 using namespace mediagrep;
 
@@ -69,4 +70,32 @@ TEST_CASE("emit runs on a single thread at a time") {
     for (int i = 0; i < 200; ++i) pool.submit(i);
     pool.finish();
     CHECK_FALSE(overlapped);
+}
+
+TEST_CASE("bounded queue: FIFO, and pop drains before reporting closed") {
+    BoundedQueue<int> q(4);
+    q.push(1);
+    q.push(2);
+    q.close();
+    CHECK(q.pop() == std::optional<int>(1));
+    CHECK(q.pop() == std::optional<int>(2));
+    CHECK_FALSE(q.pop().has_value());
+}
+
+TEST_CASE("bounded queue: push blocks at capacity until a pop makes room") {
+    BoundedQueue<int> q(2);
+    std::atomic<int> pushed{0};
+    std::thread producer([&] {
+        for (int i = 0; i < 5; ++i) {
+            q.push(i);
+            ++pushed;
+        }
+        q.close();
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(pushed.load() == 2);
+    int expected = 0;
+    while (auto v = q.pop()) CHECK(*v == expected++);
+    producer.join();
+    CHECK(expected == 5);
 }

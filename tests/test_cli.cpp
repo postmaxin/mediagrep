@@ -210,3 +210,11 @@ TEST_CASE("cli: the Path track is recognized from the file name") {
     CHECK(f.out.find("Path/Episode: 2\n") != std::string::npos);
     CHECK(f.out.find("Path/Id: dQw4w9WgXcQ\n") != std::string::npos);
 }
+
+TEST_CASE("cli: --progress without a terminal writes a summary line to stderr") {
+    Run r = run("-r --progress -l -e \"Video/Height < 1000\" .");
+    CHECK(r.status == 0);
+    CHECK(r.out.find("./clip.mp4\n./talk.mkv\n") != std::string::npos);
+    CHECK(r.out.find("mediagrep: progress: 5/5 files, 2 matched, ") != std::string::npos);
+    CHECK(run("-r -l -e \"Video/Height < 1000\" .").out == "./clip.mp4\n./talk.mkv\n");
+}

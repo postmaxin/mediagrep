@@ -99,6 +99,14 @@ is available.
 | `--fields FILE` | List every field of one file and exit. The answer to "what is the field called". |
 | `-q` | No output, exit status only. |
 | `-s` | Suppress warnings about unreadable files. |
+| `--progress` | Show progress on stderr. The default when stderr is a terminal and `-q` is not given. Without a terminal, a plain line every 10 seconds and a summary at the end, for logs. |
+| `--no-progress` | Never show progress. |
+
+The progress line counts files as they are discovered (`120/340+`) and
+switches to a percentage, bar and time remaining once the walk has found
+everything. It appears only after half a second, so quick searches stay
+clean, and it is cleared before each match is printed, so it never mixes
+with output even when stdout is the same terminal.
 
 Exit status is 0 if any file was selected, 1 if none, 2 on error.
 
