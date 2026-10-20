@@ -303,9 +303,14 @@ with the grammar. Field comparisons and boolean operators require `-e`.
 
 All stdout and stderr writes go through one console object that clears
 the progress line first, so a match or warning never lands mid-line. The
-line stays one column short of the terminal width, counting East Asian
-wide characters as two, so it never wraps, and control characters in
-file names are shown as `?`. On Windows the console is switched to UTF-8
+line stays one column short of the terminal width, so it never wraps,
+and so does the padding that blanks a longer previous line, even when
+the window was shrunk since (the width is read at every redraw). East
+Asian wide characters count as two columns: the table is every
+East_Asian_Width W and F range, generated from Unicode's
+`EastAsianWidth.txt` (17.0.0) by `tools/gen_wide_table.py` into
+`src/wide_table.inc`, because hand-picked ranges missed common emoji such
+as U+2705. Control characters in file names are shown as `?`. On Windows the console is switched to UTF-8
 output for the life of the process so file names print correctly.
 | `--version`, `--help` | The usual. |
 

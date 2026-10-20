@@ -101,3 +101,35 @@ TEST_CASE("log lines always report elapsed time") {
     CHECK(formatProgressLog(state(340, 340, false, 5, 133)) ==
           "progress: 340/340 files, 5 matched, 2:13 elapsed");
 }
+
+TEST_CASE("emoji and symbols that East Asian Width lists as wide take two columns") {
+    CHECK(displayWidth("\xE2\x9C\x85") == 2);      // U+2705 white heavy check mark
+    CHECK(displayWidth("\xE2\xAD\x90") == 2);      // U+2B50 star
+    CHECK(displayWidth("\xE2\x9A\xA1") == 2);      // U+26A1 high voltage
+    CHECK(displayWidth("\xE2\x8C\x9A") == 2);      // U+231A watch
+    CHECK(displayWidth("\xE3\x80\x88") == 2);      // U+3008 left angle bracket
+    CHECK(displayWidth("\xF0\x9F\x8E\xB5") == 2);  // U+1F3B5 musical note
+    // Neighbours that are not wide: U+2713 check mark, U+303F, U+FF61 halfwidth full stop.
+    CHECK(displayWidth("\xE2\x9C\x93") == 1);
+    CHECK(displayWidth("\xE3\x80\xBF") == 1);
+    CHECK(displayWidth("\xEF\xBD\xA1") == 1);
+}
+
+TEST_CASE("redraw pads over a longer old line, but never past the last column") {
+    // Unchanged terminal width: pad the 10 columns drawn before to 10.
+    CHECK(redrawText("abcd", 10, 80) == "\rabcd      ");
+    // Shrunk from 80 to 40: 79 columns were drawn, but padding stops at 39.
+    const std::string r = redrawText("abcd", 79, 40);
+    CHECK(r.size() == 1 + 39);
+    CHECK(displayWidth(r.substr(1)) == 39);
+    // A line already at the limit gets no padding, and a zero width gets none.
+    CHECK(redrawText("abcd", 79, 5) == "\rabcd");
+    CHECK(redrawText("abcd", 79, 0) == "\rabcd");
+}
+
+TEST_CASE("clear never writes more than the current width minus one") {
+    CHECK(clearText(10, 80) == "\r" + std::string(10, ' ') + "\r");
+    CHECK(clearText(79, 40) == "\r" + std::string(39, ' ') + "\r");
+    CHECK(clearText(79, 1) == "\r\r");
+    CHECK(clearText(79, 0) == "\r\r");
+}
