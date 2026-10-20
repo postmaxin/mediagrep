@@ -141,7 +141,10 @@ skipped with a "recursive directory loop" warning, which does not affect
 the exit status (as in grep). Two links to the same directory that are not
 nested are not a cycle, and the directory is walked each time. A link
 whose target is missing is an error, as is an entry that vanishes between
-the listing and the `stat`. `--include` and
+the listing and the `stat`. On Windows a path counts as a symlink for
+`-r` only if its reparse tag is a name surrogate (symlink, junction,
+mount point); OneDrive placeholders, dedup and similar files are plain
+files. `--include` and
 `--exclude` globs filter by filename. The walk runs on its own thread
 and may discover up to 200,000 paths ahead of the workers, so the
 progress total settles early without unbounded memory. Files are

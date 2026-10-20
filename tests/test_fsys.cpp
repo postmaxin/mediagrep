@@ -165,3 +165,40 @@ TEST_CASE("FILETIME ticks convert to Unix time, before 1970 as well") {
     CHECK(*fsys::detail::fileTimeToUnix(kEpoch - 86400ULL * 365 * 10000000ULL) == -86400 * 365);
     CHECK(*fsys::detail::fileTimeToUnix(1) < 0);              // 1601 is far in the past
 }
+
+TEST_CASE("only name-surrogate reparse tags are links") {
+    using fsys::detail::isLinkReparseTag;
+    CHECK(isLinkReparseTag(0xA000000C));        // IO_REPARSE_TAG_SYMLINK
+    CHECK(isLinkReparseTag(0xA0000003));        // IO_REPARSE_TAG_MOUNT_POINT (junction)
+    CHECK(isLinkReparseTag(0xA000001D));        // IO_REPARSE_TAG_LX_SYMLINK (WSL)
+    CHECK_FALSE(isLinkReparseTag(0x9000601A));  // OneDrive Files On-Demand (CLOUD_6)
+    CHECK_FALSE(isLinkReparseTag(0x9000001A));  // IO_REPARSE_TAG_CLOUD
+    CHECK_FALSE(isLinkReparseTag(0x9000F01A));  // IO_REPARSE_TAG_CLOUD_F
+    CHECK_FALSE(isLinkReparseTag(0x80000013));  // IO_REPARSE_TAG_DEDUP
+    CHECK_FALSE(isLinkReparseTag(0x8000001B));  // IO_REPARSE_TAG_APPEXECLINK
+    CHECK_FALSE(isLinkReparseTag(0x80000023));  // IO_REPARSE_TAG_AF_UNIX
+    CHECK_FALSE(isLinkReparseTag(0));           // not a reparse point
+}
+
+TEST_CASE("windowsJoin adds no separator after a bare drive letter") {
+    using fsys::detail::windowsJoin;
+    CHECK(windowsJoin("C:", "x.mkv") == "C:x.mkv");  // the current directory on drive C
+    CHECK(windowsJoin("c:", "x.mkv") == "c:x.mkv");
+    CHECK(windowsJoin("C:\\", "x.mkv") == "C:\\x.mkv");
+    CHECK(windowsJoin("C:/", "x.mkv") == "C:/x.mkv");
+    CHECK(windowsJoin("C:\\a", "x.mkv") == "C:\\a\\x.mkv");
+    CHECK(windowsJoin("a", "x.mkv") == "a\\x.mkv");
+    CHECK(windowsJoin("", "x.mkv") == "x.mkv");
+    CHECK(windowsJoin("CC:", "x.mkv") == "CC:\\x.mkv");  // not a drive
+    CHECK(windowsJoin("1:", "x.mkv") == "1:\\x.mkv");
+}
+
+TEST_CASE("windowsSearchPattern lists 'C:' as the current directory on that drive") {
+    using fsys::detail::windowsSearchPattern;
+    CHECK(windowsSearchPattern("C:") == "C:*");  // C:\* would be the drive root
+    CHECK(windowsSearchPattern("C:\\") == "C:\\*");
+    CHECK(windowsSearchPattern("C:\\a") == "C:\\a\\*");
+    CHECK(windowsSearchPattern("a/") == "a/*");
+    CHECK(windowsSearchPattern("") == "*");
+    CHECK(windowsSearchPattern("\\\\server\\share") == "\\\\server\\share\\*");
+}

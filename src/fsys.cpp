@@ -95,6 +95,29 @@ std::optional<std::time_t> fileTimeToUnix(std::uint64_t ticks) {
                                     kSecondsFrom1601To1970);
 }
 
+bool isLinkReparseTag(std::uint32_t tag) {
+    constexpr std::uint32_t kNameSurrogate = 0x20000000;  // IsReparseTagNameSurrogate
+    return (tag & kNameSurrogate) != 0;
+}
+
+namespace {
+bool isWindowsSeparator(char c) { return c == '/' || c == '\\'; }
+bool isBareDrive(const std::string& path) {
+    return path.size() == 2 && path[1] == ':' &&
+           ((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z'));
+}
+}  // namespace
+
+std::string windowsJoin(const std::string& dir, const std::string& name) {
+    if (dir.empty()) return name;
+    if (isWindowsSeparator(dir.back()) || isBareDrive(dir)) return dir + name;
+    return dir + '\\' + name;
+}
+
+std::string windowsSearchPattern(const std::string& dir) {
+    return windowsJoin(dir, "*");
+}
+
 }  // namespace detail
 
 #ifdef _WIN32
@@ -127,7 +150,6 @@ namespace {
 std::string lastErrorMessage() {
     return std::system_category().message(static_cast<int>(GetLastError()));
 }
-bool isSeparator(char c) { return c == '/' || c == '\\'; }
 }  // namespace
 
 FileType status(const std::string& path, std::string* error) {
@@ -169,14 +191,20 @@ std::optional<FileId> directoryId(const std::string& path, std::string* error) {
 }
 
 bool isSymlink(const std::string& path) {
-    const DWORD attrs = GetFileAttributesW(widen(path).c_str());
-    return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT);
+    const std::wstring wide = widen(path);
+    const DWORD attrs = GetFileAttributesW(wide.c_str());
+    if (attrs == INVALID_FILE_ATTRIBUTES || !(attrs & FILE_ATTRIBUTE_REPARSE_POINT)) return false;
+    // Reparse points also mark OneDrive placeholders, dedup files and the like.
+    // Those are ordinary files; only the tag tells them from links.
+    WIN32_FIND_DATAW data;
+    HANDLE h = FindFirstFileW(wide.c_str(), &data);
+    if (h == INVALID_HANDLE_VALUE) return true;  // cannot tell, so skip it as before
+    FindClose(h);
+    return detail::isLinkReparseTag(data.dwReserved0);
 }
 
 bool listDirectory(const std::string& path, std::vector<std::string>& names, std::string* error) {
-    std::wstring pattern = widen(path);
-    if (pattern.empty() || !isSeparator(path.back())) pattern += L'\\';
-    pattern += L'*';
+    const std::wstring pattern = widen(detail::windowsSearchPattern(path));
     WIN32_FIND_DATAW data;
     HANDLE h = FindFirstFileW(pattern.c_str(), &data);
     bool first = true;
@@ -199,9 +227,7 @@ bool listDirectory(const std::string& path, std::vector<std::string>& names, std
 }
 
 std::string join(const std::string& dir, const std::string& name) {
-    if (dir.empty()) return name;
-    if (isSeparator(dir.back())) return dir + name;
-    return dir + '\\' + name;
+    return detail::windowsJoin(dir, name);
 }
 
 std::string fileName(std::string_view path) {

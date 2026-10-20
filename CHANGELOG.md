@@ -41,6 +41,10 @@ The first release.
 - A directory that fails part-way through listing (a dropped NAS or SMB
   connection) is reported and exits 2, instead of being searched as if it
   were shorter.
+- On Windows, `-r` searches OneDrive placeholders and other non-link
+  reparse points instead of skipping them as if they were symlinks (this
+  can make Windows download cloud-only files), and a bare `C:` means the
+  current directory on that drive.
 - `-i` ignores case in regexes and equality alike.
 - `-v` with `-L` selects the same files for the output, `-c`, `-q`, the
   progress count and the exit status. `--parse-speed=nan` is rejected.
