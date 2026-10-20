@@ -388,6 +388,7 @@ src/
   utf.{h,cpp}     UTF-8 <-> wchar_t shim (UTF-16 on Windows, UTF-32 elsewhere)
   pool.h          OrderedPool: parallel workers, in-order results
   queue.h         BoundedQueue between the walker thread and the pool
+  thread.{h,cpp}  worker threads with 256 MB stacks; per-thread regex length limit
   progress.{h,cpp}  progress line and log formatting, the console lock
   term.{h,cpp}    terminal detection and width, Windows UTF-8 console
   cli.{h,cpp}     option parsing and output formatting
@@ -404,6 +405,19 @@ docs/
 
 The two MediaInfoDLL headers are vendored because the dynamic-load build
 should not require the dev package at all.
+
+## Regex safety
+
+libstdc++'s std::regex recurses once per character for patterns such as
+`a.*b`: measured at about 80 bytes per character for `a.*b` and 400 for
+`(a|b)*b`, so a 5,000-character description crashes a 512 KB macOS
+thread and 100,000 characters crash an 8 MB Linux one. Workers therefore
+run on threads that reserve 256 MB of stack (falling back to 64 and 16 MB
+where address space is short), and on libstdc++ each thread refuses to
+regex-match values longer than its stack divided by 1 KB, warning once.
+MSVC's implementation instead throws `error_stack`; that, and any other
+`regex_error` during matching, is a warning and counts as no answer for
+that value, so it satisfies neither `~` nor `!~`.
 
 ## Open points deferred past v1
 

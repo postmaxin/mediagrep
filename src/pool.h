@@ -7,11 +7,14 @@
 #include <deque>
 #include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include "thread.h"
 
 namespace mediagrep {
 
@@ -26,7 +29,7 @@ public:
         if (workers == 0) workers = 1;
         capacity_ = workers * 4;
         for (std::size_t i = 0; i < workers; ++i)
-            workers_.emplace_back([this] { workerLoop(); });
+            workers_.push_back(std::make_unique<WorkerThread>([this] { workerLoop(); }));
         output_ = std::thread([this] { outputLoop(); });
     }
 
@@ -52,7 +55,7 @@ public:
             finished_ = true;
         }
         jobReady_.notify_all();
-        for (auto& t : workers_) t.join();
+        for (auto& t : workers_) t->join();
         {
             std::lock_guard<std::mutex> lock(mutex_);
             workersDone_ = true;
@@ -115,7 +118,7 @@ private:
     bool finished_ = false;
     bool workersDone_ = false;
 
-    std::vector<std::thread> workers_;
+    std::vector<std::unique_ptr<WorkerThread>> workers_;  // big stacks, for std::regex
     std::thread output_;
 };
 

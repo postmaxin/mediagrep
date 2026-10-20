@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "thread.h"
 #include "units.h"
 
 namespace mediagrep {
@@ -178,12 +179,37 @@ struct Evaluator::Impl {
         }
     }
 
+    static void warnOnce(std::vector<std::string>& warnings, std::string message) {
+        if (std::find(warnings.begin(), warnings.end(), message) == warnings.end())
+            warnings.push_back(std::move(message));
+    }
+
+    // Searches `value` with e's regex. Returns nullopt, with a warning, when
+    // the value is too long for this thread's stack (libstdc++ recurses per
+    // character) or the engine gives up (MSVC's error_stack).
+    std::optional<bool> search(const Expr& e, const std::string& value,
+                               std::vector<std::string>& warnings) const {
+        const std::size_t limit = threadRegexLimit();
+        if (value.size() > limit) {
+            warnOnce(warnings, "regex '" + e.value + "' was not applied to values longer than " +
+                                   std::to_string(limit) + " characters");
+            return std::nullopt;
+        }
+        try {
+            return std::regex_search(value, regexes.at(&e));
+        } catch (const std::regex_error& err) {
+            warnOnce(warnings, "regex '" + e.value + "' gave up on a long value (" + err.what() + ")");
+            return std::nullopt;
+        }
+    }
+
     bool compareValue(const Expr& e, const FieldValue& fv, std::vector<std::string>& warnings) const {
         if (fv.type == ValueType::Binary) return false;
 
         if (e.op == Op::Match || e.op == Op::NotMatch) {
-            const bool found = std::regex_search(fv.value, regexes.at(&e));
-            return e.op == Op::Match ? found : !found;
+            const std::optional<bool> found = search(e, fv.value, warnings);
+            if (!found) return false;  // no answer satisfies neither ~ nor !~
+            return e.op == Op::Match ? *found : !*found;
         }
 
         // Numeric when declared so, or when the library attached a unit of
@@ -193,10 +219,7 @@ struct Evaluator::Impl {
         if (numeric) {
             const std::optional<double> operand = parseNumber(e.value, fv.measure);
             if (!operand) {
-                const std::string msg = "field " + fv.name + ": operand '" + e.value +
-                                        "' is not a number";
-                if (std::find(warnings.begin(), warnings.end(), msg) == warnings.end())
-                    warnings.push_back(msg);
+                warnOnce(warnings, "field " + fv.name + ": operand '" + e.value + "' is not a number");
                 return false;
             }
             const double value = std::strtod(fv.value.c_str(), nullptr);
@@ -256,7 +279,6 @@ struct Evaluator::Impl {
                 return r;
 
             case Expr::Kind::Pattern: {
-                const std::regex& re = regexes.at(&e);
                 for (TrackKind kind : kAllKinds) {
                     if (isPathTrack(kind)) continue;
                     const std::size_t n = src.trackCount(kind);
@@ -264,7 +286,8 @@ struct Evaluator::Impl {
                         src.forEachField(kind, i, [&](const FieldValue& fv) {
                             if (fv.type == ValueType::Binary) return;
                             if (kind == TrackKind::General && isPathDerived(fv.name)) return;
-                            if (!std::regex_search(fv.value, re)) return;
+                            const std::optional<bool> found = search(e, fv.value, warnings);
+                            if (!found || !*found) return;
                             r.ok = true;
                             r.fields.push_back({kind, i, n > 1, fv.name, fv.value});
                         });
