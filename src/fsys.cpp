@@ -123,6 +123,21 @@ FileType status(const std::string& path, std::string* error) {
     return FileType::Regular;
 }
 
+std::optional<FileId> directoryId(const std::string& path, std::string* error) {
+    HANDLE h = CreateFileW(widen(path).c_str(), 0,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                           OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    BY_HANDLE_FILE_INFORMATION info{};
+    if (h == INVALID_HANDLE_VALUE || !GetFileInformationByHandle(h, &info)) {
+        if (error) *error = lastErrorMessage();
+        if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+        return std::nullopt;
+    }
+    CloseHandle(h);
+    return FileId{info.dwVolumeSerialNumber,
+                  (static_cast<std::uint64_t>(info.nFileIndexHigh) << 32) | info.nFileIndexLow};
+}
+
 bool isSymlink(const std::string& path) {
     const DWORD attrs = GetFileAttributesW(widen(path).c_str());
     return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT);
@@ -190,6 +205,15 @@ FileType status(const std::string& path, std::string* error) {
     if (S_ISDIR(st.st_mode)) return FileType::Directory;
     if (S_ISREG(st.st_mode)) return FileType::Regular;
     return FileType::Other;
+}
+
+std::optional<FileId> directoryId(const std::string& path, std::string* error) {
+    StatBuf st;
+    if (::stat(path.c_str(), &st) != 0) {
+        if (error) *error = std::strerror(errno);
+        return std::nullopt;
+    }
+    return FileId{static_cast<std::uint64_t>(st.st_dev), static_cast<std::uint64_t>(st.st_ino)};
 }
 
 bool isSymlink(const std::string& path) {

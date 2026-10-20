@@ -35,6 +35,9 @@ The first release.
   print paths, `-c` counts, `-0` separates records with NUL, `-v`
   inverts, `-q` exits at the first match.
 - Directories are entered only with `-r` or `-R`.
+- `-R` skips a symlink cycle with a "recursive directory loop" warning, as
+  grep does, instead of descending until the path is too long; a broken
+  link is reported and exits 2.
 - `-i` ignores case in regexes and equality alike.
 - `-v` with `-L` selects the same files for the output, `-c`, `-q`, the
   progress count and the exit status. `--parse-speed=nan` is rejected.

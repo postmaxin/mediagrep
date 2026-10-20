@@ -19,6 +19,19 @@ enum class FileType { Missing, Regular, Directory, Other };
 // a missing file, which is simply Missing) sets `error` to the OS message.
 FileType status(const std::string& path, std::string* error = nullptr);
 
+// What identifies a file system object: the volume (device, or volume serial
+// number) and the object on it (inode, or file index). Two paths with the same
+// FileId are the same directory, however they were reached.
+struct FileId {
+    std::uint64_t volume = 0;
+    std::uint64_t index = 0;
+    bool operator==(const FileId& o) const { return volume == o.volume && index == o.index; }
+};
+
+// Identity of the directory at `path`, following symlinks. nullopt (and `error`
+// set) if it cannot be examined. Lets a recursive walk spot a symlink cycle.
+std::optional<FileId> directoryId(const std::string& path, std::string* error = nullptr);
+
 // True if `path` itself is a symbolic link (not followed).
 bool isSymlink(const std::string& path);
 

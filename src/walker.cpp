@@ -40,6 +40,7 @@ struct Walker {
     const FileCallback& onFile;
     const ErrorCallback& onError;
     std::size_t errors = 0;
+    std::vector<fsys::FileId> chain;  // the directories being walked, outermost first
 
     bool passesFilters(const std::string& name) const {
         if (!options.include.empty()) {
@@ -75,11 +76,24 @@ struct Walker {
     }
 
     void directory(const std::string& dir) {
-        std::vector<std::string> names;
         std::string error;
+        const std::optional<fsys::FileId> id = fsys::directoryId(dir, &error);
+        if (!id) { fail(dir, error); return; }
+        if (std::find(chain.begin(), chain.end(), *id) != chain.end()) {
+            if (options.warning) options.warning(dir, "recursive directory loop");
+            return;
+        }
+        std::vector<std::string> names;
         if (!fsys::listDirectory(dir, names, &error)) { fail(dir, error); return; }
         std::sort(names.begin(), names.end());
 
+        chain.push_back(*id);
+        walkEntries(dir, names);
+        chain.pop_back();
+    }
+
+    void walkEntries(const std::string& dir, const std::vector<std::string>& names) {
+        std::string error;
         for (const std::string& name : names) {
             if (stopped()) return;
             const std::string child = fsys::join(dir, name);
@@ -87,6 +101,8 @@ struct Walker {
             error.clear();
             const fsys::FileType type = fsys::status(child, &error);
             if (!error.empty()) { fail(child, error); continue; }
+            // A broken link, or an entry removed since the listing.
+            if (type == fsys::FileType::Missing) { fail(child, "No such file or directory"); continue; }
             if (type == fsys::FileType::Directory) directory(child);
             else if (type == fsys::FileType::Regular && passesFilters(name)) onFile(child);
         }
@@ -126,7 +142,7 @@ bool globMatch(std::string_view pattern, std::string_view name) {
 
 std::size_t walk(const std::vector<std::string>& roots, const WalkOptions& options,
                  const FileCallback& onFile, const ErrorCallback& onError) {
-    Walker w{options, onFile, onError};
+    Walker w{options, onFile, onError, 0, {}};
     for (const auto& r : roots) w.root(r);
     return w.errors;
 }

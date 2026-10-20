@@ -99,7 +99,7 @@ is available.
 | `-c` | Print a count of matching files per `PATH`. |
 | `-0` | End records with NUL instead of newline, for `xargs -0`. |
 | `-r` | Recurse into directories, not following symlinks. |
-| `-R` | Recurse and follow symlinks. |
+| `-R` | Recurse and follow symlinks. A link back to a directory already being searched is skipped with a warning, and a broken link is an error. |
 | `--include GLOB` | Only files whose name matches. Repeatable. |
 | `--exclude GLOB` | Skip files whose name matches. Repeatable. |
 | `-j N` | Worker threads. Default: the smaller of 2 and the CPU count. |
