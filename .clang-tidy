@@ -21,13 +21,14 @@ Checks: >
 #   tests options.fieldsFile before calling dumpFields (src/main.cpp).
 # switch-missing-default-case: the two hits (parser.cpp, units.cpp) switch over
 #   a char and fall out to a `return` that handles every other value.
-# cert-err33-c: wants every fprintf/fputs/fflush result checked. This is a
-#   CLI that writes to a terminal; there is nothing useful to do on failure.
+# cert-err33-c: wants every fprintf/fputs/fflush result checked. Writes to
+#   stderr or the terminal are deliberately unchecked; stdout write failures
+#   are handled explicitly in main.cpp and Progress::out (see #4).
 # cert-err34-c: flags atoi() in path_track.cpp, but every argument is a
 #   1 to 4 digit string already matched by a \d{n} regex, so it cannot overflow.
 # cert-err58-cpp: static test fixtures built from std::string in tests/.
 # cert-env33-c: tests/test_cli.cpp runs the CLI through popen() on purpose.
-# concurrency-mt-unsafe: six hits, reported on issue #2 for the code to fix:
+# concurrency-mt-unsafe: six hits, tracked in issue #9 for the code to fix:
 #   getpwuid/getgrgid (src/fsys.cpp:133-134, called from the worker
 #   threads; TSan confirms the race), strerror (fsys.cpp:141 and 157),
 #   plus setlocale in mediainfo_source.cpp:47 and :52, which runs once under
