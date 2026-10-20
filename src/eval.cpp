@@ -168,12 +168,14 @@ struct Evaluator::Impl {
             // recurse, but it rejects back-references: those fall through
             // to the default executor and the length limit. Matching only
             // asks yes or no, so both executors give the same answer.
+            bool rejected = false;
             try {
                 const auto polynomial = flags | std::regex_constants::__polynomial;
                 regexes.emplace(&e, Compiled{std::regex(e.value, polynomial), false});
-                return;
             } catch (const std::regex_error&) {
+                rejected = true;
             }
+            if (!rejected) return;
 #endif
             regexes.emplace(&e, Compiled{std::regex(e.value, flags), true});
         } catch (const std::regex_error& err) {
