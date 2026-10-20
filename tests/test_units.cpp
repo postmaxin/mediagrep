@@ -60,6 +60,29 @@ TEST_CASE("date values normalize to YYYY-MM-DD HH:MM:SS") {
     CHECK(normalizeDateValue("UTC 2024-03-01") == "2024-03-01 00:00:00");
 }
 
+TEST_CASE("MediaInfo's trailing forms are accepted: UTC suffix, offsets, fractions") {
+    CHECK(normalizeDateValue("2024-03-01 12:00:00 UTC") == "2024-03-01 12:00:00");
+    CHECK(normalizeDateValue("UTC 2024-03-01 12:00:00.5") == "2024-03-01 12:00:00");
+    CHECK(normalizeDateValue("2024-03-01T12:34:56+01:00") == "2024-03-01 12:34:56");
+    CHECK(normalizeDateValue("2024-03-01T12:34:56-0500") == "2024-03-01 12:34:56");
+    CHECK(normalizeDateValue("2024-03-01T12:34:56.789Z") == "2024-03-01 12:34:56");
+    CHECK(normalizeDateValue("2024-03-01 12:34") == "2024-03-01 12:34:00");
+    CHECK(normalizeDateValue("2024-03-01 12:34:56 ") == "2024-03-01 12:34:56");
+}
+
+TEST_CASE("a date followed by other text is not a date") {
+    CHECK_FALSE(normalizeDateValue("2024-03-01.mkv"));
+    CHECK_FALSE(normalizeDateValue("2024-03-01 Interview"));
+    CHECK_FALSE(normalizeDateValue("2024-03-01 12:00:00 Interview"));
+    CHECK_FALSE(normalizeDateValue("2024-03-01 12:00:00.mkv"));
+    CHECK_FALSE(normalizeDateValue("2024-03-01T"));
+    CHECK_FALSE(normalizeDateValue("2024-03-01Z"));
+    CHECK_FALSE(normalizeDateValue("2024-03-01 12:00:00 UTCX"));
+    CHECK_FALSE(normalizeDateValue("2024-03-01 12:00:00+"));
+    CHECK_FALSE(normalizeDateValue("2024-03-011"));
+    CHECK_FALSE(normalizeDateValue("UTC 2024-03-01 and more"));
+}
+
 TEST_CASE("values without a dashed date are not dates") {
     CHECK_FALSE(normalizeDateValue("Matroska"));
     CHECK_FALSE(normalizeDateValue("2024"));

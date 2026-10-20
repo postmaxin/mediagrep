@@ -257,6 +257,30 @@ TEST_CASE("date-shaped values compare chronologically at the operand's granulari
     CHECK(matches("Encoded_Date != 2025", src));
 }
 
+TEST_CASE("a text field that merely starts with a date does not equal the bare date") {
+    FakeSource src;
+    src.add(TrackKind::General, {text("Title", "2024-03-01 Interview")});
+    src.add(TrackKind::File, {text("Name", "2024-03-01.mkv")});
+    CHECK_FALSE(matches("File/Name = 2024-03-01", src));
+    CHECK_FALSE(matches("Title = 2024-03-01", src));
+    CHECK(matches("Title != 2024-03-01", src));
+    // Exact text still matches.
+    CHECK(matches("File/Name = 2024-03-01.mkv", src));
+    CHECK(matches("Title = '2024-03-01 Interview'", src));
+    CHECK(matches("Title ~ 2024-03-01", src));
+}
+
+TEST_CASE("MediaInfo's date forms still compare by value") {
+    FakeSource src;
+    src.add(TrackKind::General, {text("A", "UTC 2024-03-01 12:34:56"),
+                                 text("B", "2024-03-01T12:34:56Z"),
+                                 text("C", "2024-03-01 12:34:56 UTC")});
+    CHECK(matches("A = 2024-03-01", src));
+    CHECK(matches("B = 2024-03", src));
+    CHECK(matches("C >= 2024", src));
+    CHECK(matches("B < '2024-03-01 13:00'", src));
+}
+
 TEST_CASE("a non-date operand against a date value falls back to text comparison") {
     auto src = typicalVideo();
     CHECK(matches("Encoded_Date ~ UTC", src));

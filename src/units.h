@@ -20,8 +20,11 @@ std::optional<double> parseNumber(std::string_view text, std::string_view measur
 
 // Normalizes a date-shaped metadata value to "YYYY-MM-DD HH:MM:SS".
 // Accepts MediaInfo's forms: "UTC 2024-03-01 12:00:00", "2024-03-01",
-// "2024-03-01T12:00:00Z", fractional seconds. A value must contain the
-// dashed date to count; a bare number is not a date.
+// "2024-03-01T12:00:00Z", fractional seconds, a numeric offset, a trailing
+// " UTC". A value must contain the dashed date to count; a bare number is
+// not a date, and neither is a date followed by anything else
+// ("2024-03-01.mkv", "2024-03-01 Interview"), so `=` on a name or title
+// compares text, not dates.
 std::optional<std::string> normalizeDateValue(std::string_view value);
 
 // Normalizes a user-supplied date operand, keeping its granularity:
