@@ -136,8 +136,8 @@ struct Evaluator::Impl {
     EvalOptions options;
     // `bounded` is set for regexes that use the default executor, which
     // libstdc++ runs recursively; those are subject to the thread's length
-    // limit. The others run in time and stack that do not depend on the
-    // length of the text.
+    // limit. The others use stack that does not grow with the length of the
+    // text, and time linear in it (no exponential backtracking).
     struct Compiled {
         std::regex re;
         bool bounded = true;
