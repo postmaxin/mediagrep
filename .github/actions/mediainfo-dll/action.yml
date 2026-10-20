@@ -1,0 +1,46 @@
+name: MediaInfo DLL
+description: >
+  Download the Windows MediaInfo DLL and its license, check both against
+  pinned SHA-256 hashes, and put the DLL on PATH. Used by ci.yml and
+  release.yml, so the version and hashes live in one place.
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify
+      shell: pwsh
+      env:
+        # To bump MEDIAINFO_VERSION, download the new archive over HTTPS from
+        # mediaarea.net, take its hash with Get-FileHash -Algorithm SHA256, and
+        # update both hashes here; the check below fails until you do.
+        # MediaArea publishes no checksums or signatures for these archives
+        # (checked 2026-10-20), so the hashes were taken from an HTTPS download
+        # of 26.10 and mean "the file we reviewed", not "what MediaArea signed".
+        # The license is fetched from the repository tag, which a tag move could
+        # change; the hash catches that.
+        MEDIAINFO_VERSION: "26.10"
+        MEDIAINFO_ZIP_SHA256: "4EFE172DF014693732E8B64A004CF382B8599EAF86BE26A9B38C0D2993E60E1D"
+        MEDIAINFO_LICENSE_SHA256: "DA6D89C8E74013FA1BE6065EF6B04C7198292100EAE1C81703D6B80A3F81ABEE"
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $v = $env:MEDIAINFO_VERSION
+        $dir = Join-Path $env:RUNNER_TEMP 'mediainfo'
+        $zip = Join-Path $env:RUNNER_TEMP 'mediainfo.zip'
+        $license = Join-Path $env:RUNNER_TEMP 'MediaInfo-License.html'
+
+        function Assert-Sha256($path, $expected) {
+          $actual = (Get-FileHash $path -Algorithm SHA256).Hash
+          if ($actual -ne $expected) {
+            throw "SHA-256 of $path is $actual, expected $expected. If MEDIAINFO_VERSION changed, update the hashes in .github/actions/mediainfo-dll/action.yml."
+          }
+          Write-Host "SHA-256 ok: $path ($actual)"
+        }
+
+        Invoke-WebRequest -Uri "https://mediaarea.net/download/binary/libmediainfo0/$v/MediaInfo_DLL_${v}_Windows_x64_WithoutInstaller.zip" -OutFile $zip
+        Assert-Sha256 $zip $env:MEDIAINFO_ZIP_SHA256
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MediaArea/MediaInfoLib/v$v/License.html" -OutFile $license
+        Assert-Sha256 $license $env:MEDIAINFO_LICENSE_SHA256
+
+        Expand-Archive $zip -DestinationPath $dir
+        Copy-Item $license (Join-Path $dir 'License.html') -Force
+        Add-Content $env:GITHUB_PATH $dir

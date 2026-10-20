@@ -81,14 +81,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install MediaInfo DLL
-        shell: pwsh
-        run: |
-          $v = "26.10"
-          $url = "https://mediaarea.net/download/binary/libmediainfo0/$v/MediaInfo_DLL_${v}_Windows_x64_WithoutInstaller.zip"
-          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\mediainfo.zip"
-          Expand-Archive "$env:RUNNER_TEMP\mediainfo.zip" -DestinationPath "$env:RUNNER_TEMP\mediainfo"
-          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP\mediainfo"
+      - name: Install MediaInfo DLL (checked against a pinned hash)
+        uses: ./.github/actions/mediainfo-dll
       - name: Configure
         run: cmake -S . -B build -A x64
       - name: Build
