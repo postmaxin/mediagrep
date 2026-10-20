@@ -68,7 +68,7 @@ bool parseSpeed(const std::string& text, double& out) {
     char* end = nullptr;
     const double v = std::strtod(text.c_str(), &end);
     if (end != text.c_str() + text.size()) return false;
-    if (v < 0.0 || v > 1.0) return false;
+    if (!(v >= 0.0 && v <= 1.0)) return false;  // also rejects NaN
     out = v;
     return true;
 }
@@ -177,14 +177,19 @@ std::optional<Options> parseArgs(const std::vector<std::string>& args, std::stri
     return o;
 }
 
+bool isSelected(const Options& options, const Match& match) {
+    const bool selected = match.matched != options.invert;
+    return options.output == Options::Output::FilesWithoutMatch ? !selected : selected;
+}
+
 std::string formatFile(const Options& options, const std::string& path, const Match& match) {
     if (options.quiet) return "";
     const char sep = options.nullSeparated ? '\0' : '\n';
-    const bool matched = match.matched != options.invert;
+    const bool selected = isSelected(options, match);
 
     switch (options.output) {
         case Options::Output::Fields: {
-            if (!matched) return "";
+            if (!selected) return "";
             if (options.invert || match.fields.empty()) return path + sep;
             std::string out;
             for (const auto& f : match.fields)
@@ -192,9 +197,8 @@ std::string formatFile(const Options& options, const std::string& path, const Ma
             return out;
         }
         case Options::Output::FilesWithMatches:
-            return matched ? path + sep : "";
         case Options::Output::FilesWithoutMatch:
-            return matched ? "" : path + sep;
+            return selected ? path + sep : "";
         case Options::Output::Count:
             return "";
     }

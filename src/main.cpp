@@ -191,9 +191,7 @@ int run(const Options& options) {
         }
         for (const std::string& w : r.match.warnings)
             if (warned.insert(w).second) progress.err("mediagrep: warning: " + w + "\n");
-        const bool selected = options.output == Options::Output::FilesWithoutMatch
-                                  ? !r.match.matched
-                                  : r.match.matched != options.invert;
+        const bool selected = isSelected(options, r.match);
         if (selected) {
             anySelected = true;
             ++counts[r.root];

@@ -44,6 +44,11 @@ std::optional<Options> parseArgs(const std::vector<std::string>& args, std::stri
 
 std::string usageText();
 
+// Whether a media file counts as selected, for the exit status, -c, -q and
+// the progress count as well as for the output: -v inverts the match first,
+// then -L takes the complement of that. Not meaningful with --fields.
+bool isSelected(const Options& options, const Match& match);
+
 // The output for one processed file, including the trailing record
 // separators. Empty when nothing should be printed for it. `path` is
 // already in display form. Count mode is handled by the caller.

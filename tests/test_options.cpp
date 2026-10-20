@@ -103,6 +103,7 @@ TEST_CASE("long options with = or a separate value") {
     CHECK(parse({"--parse-speed", "1", "p", "d"}).parseSpeed == 1.0);
     CHECK(parseError({"--parse-speed", "2", "p", "d"}).find("parse-speed") != std::string::npos);
     CHECK(parseError({"--parse-speed", "abc", "p", "d"}).find("parse-speed") != std::string::npos);
+    CHECK(parseError({"--parse-speed", "nan", "p", "d"}).find("parse-speed") != std::string::npos);
 }
 
 TEST_CASE("--fields takes a file and needs no expression") {
@@ -200,4 +201,41 @@ TEST_CASE("format: -q prints nothing") {
     Options o;
     o.quiet = true;
     CHECK(formatFile(o, "x.mkv", matchWith({{TrackKind::General, 0, false, "Title", "Foo"}})).empty());
+}
+
+TEST_CASE("isSelected applies -v first, then the -L complement") {
+    using Out = Options::Output;
+    Match yes;
+    yes.matched = true;
+    const Match no;
+    struct Row {
+        Out output;
+        bool invert;
+        bool matchedFile;
+        bool selected;
+    };
+    const Row rows[] = {
+        {Out::Fields, false, true, true},
+        {Out::Fields, false, false, false},
+        {Out::Fields, true, true, false},
+        {Out::Fields, true, false, true},
+        {Out::FilesWithMatches, false, true, true},
+        {Out::FilesWithMatches, true, true, false},
+        {Out::FilesWithMatches, true, false, true},
+        {Out::Count, false, true, true},
+        {Out::Count, true, true, false},
+        {Out::FilesWithoutMatch, false, true, false},
+        {Out::FilesWithoutMatch, false, false, true},
+        {Out::FilesWithoutMatch, true, true, true},   // -vL: files that match
+        {Out::FilesWithoutMatch, true, false, false},
+    };
+    for (const Row& r : rows) {
+        Options o;
+        o.output = r.output;
+        o.invert = r.invert;
+        CHECK(isSelected(o, r.matchedFile ? yes : no) == r.selected);
+        // The printed output agrees with the selection for -l and -L.
+        if (r.output == Out::FilesWithMatches || r.output == Out::FilesWithoutMatch)
+            CHECK(formatFile(o, "x.mkv", r.matchedFile ? yes : no).empty() == !r.selected);
+    }
 }

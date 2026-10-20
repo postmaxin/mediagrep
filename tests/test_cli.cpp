@@ -102,6 +102,17 @@ TEST_CASE("cli: -v and -L select non-matching media files") {
     CHECK(run("-r -L -e \"Audio/Language = ja\" .").out == "./clip.mp4\n./song.mp3\n");
 }
 
+TEST_CASE("cli: -v -L prints what it selects, and the exit status agrees") {
+    // talk.mkv matches; -v inverts, -L complements that, so it is selected.
+    Run r = run("-v -L -e \"Audio/Language = ja\" talk.mkv");
+    CHECK(r.out == "talk.mkv\n");
+    CHECK(r.status == 0);
+    // clip.mp4 does not match, so -v -L does not select it.
+    Run n = run("-v -L -e \"Audio/Language = ja\" clip.mp4");
+    CHECK(n.out.empty());
+    CHECK(n.status == 1);
+}
+
 TEST_CASE("cli: -c counts matching files per path argument") {
     Run r = run("-r -c -e \"Video/Height < 1000\" . talk.mkv");
     CHECK(r.status == 0);
