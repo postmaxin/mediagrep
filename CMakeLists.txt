@@ -158,6 +158,7 @@ if(MEDIAGREP_BUILD_TESTS)
         tests/test_file_track.cpp
         tests/test_fsys.cpp
         tests/test_mediainfo.cpp
+        tests/test_module_search.cpp
         tests/test_options.cpp
         tests/test_parser.cpp
         tests/test_path.cpp
