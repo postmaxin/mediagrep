@@ -1,3 +1,9 @@
+// The test makes its own 5 GiB file, so it needs a 64-bit off_t whatever the build says;
+// the library under test has to get one from the build.
+#if !defined(_WIN32) && !defined(_FILE_OFFSET_BITS)
+#define _FILE_OFFSET_BITS 64
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -6,6 +12,13 @@
 
 #include "doctest.h"
 #include "fsys.h"
+#include "tmp_tree.h"
+
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 using namespace mediagrep;
 using fsys::FileType;
@@ -202,3 +215,34 @@ TEST_CASE("windowsSearchPattern lists 'C:' as the current directory on that driv
     CHECK(windowsSearchPattern("") == "*");
     CHECK(windowsSearchPattern("\\\\server\\share") == "\\\\server\\share\\*");
 }
+
+#ifndef _WIN32
+// A 32-bit build without _FILE_OFFSET_BITS=64 gets EOVERFLOW from stat() on a file of
+// 2 GiB or more, which is how a 4 GiB MKV on a 32-bit NAS went missing.
+TEST_CASE("stat and status handle a sparse file over 4 GiB") {
+    mediagrep::test::TempTree t{"mediagrep-big"};
+    const std::string path = t.path("big.mkv");
+    constexpr std::uint64_t kSize = 5ULL << 30;
+
+    const int fd = ::open(path.c_str(), O_CREAT | O_WRONLY, 0600);
+    REQUIRE(fd >= 0);
+    bool sparse = ::ftruncate(fd, static_cast<off_t>(kSize)) == 0;
+    struct stat st;
+    // A file system without sparse files would write out 5 GiB of zeros.
+    if (sparse && ::fstat(fd, &st) == 0)
+        sparse = static_cast<std::uint64_t>(st.st_blocks) * 512 < (1ULL << 30);
+    ::close(fd);
+    if (!sparse) {
+        MESSAGE("skipped: this file system has no sparse files");
+        return;
+    }
+
+    auto info = fsys::stat(path);
+    REQUIRE(info);
+    CHECK(info->size == kSize);
+    CHECK(fsys::status(path) == FileType::Regular);
+    std::vector<std::string> names;
+    REQUIRE(fsys::listDirectory(t.root, names));
+    CHECK(names == std::vector<std::string>{"big.mkv"});
+}
+#endif

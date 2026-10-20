@@ -45,6 +45,9 @@ The first release.
   reparse points instead of skipping them as if they were symlinks (this
   can make Windows download cloud-only files), and a bare `C:` means the
   current directory on that drive.
+
+- Files of 2 GiB or more are searched on 32-bit systems (the build now
+  uses 64-bit file offsets), where `stat` used to fail on them.
 - `-i` ignores case in regexes and equality alike.
 - `-v` with `-L` selects the same files for the output, `-c`, `-q`, the
   progress count and the exit status. `--parse-speed=nan` is rejected.
