@@ -1,11 +1,22 @@
 #include "file_track.h"
 
 #include <cctype>
+#include <climits>
 #include <cstdio>
+#include <cstdlib>
+
+#ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 #include "fsys.h"
 #include "path_track.h"
 #include "units.h"
+#ifdef _WIN32
+#include "utf.h"
+#endif
 
 namespace mediagrep {
 
@@ -19,29 +30,64 @@ bool iequals(std::string_view a, std::string_view b) {
     return true;
 }
 
-bool isSeparator(char c) {
-#ifdef _WIN32
-    return c == '/' || c == '\\';
-#else
-    return c == '/';
-#endif
+bool isSeparator(char c, bool windowsStyle) { return c == '/' || (windowsStyle && c == '\\'); }
+
+// True for "X:" at the end of `dir`, with nothing or a separator before the
+// letter: a Windows drive, possibly behind "\\?\\".
+bool endsWithDrive(const std::string& dir, bool windowsStyle) {
+    const std::size_t n = dir.size();
+    if (n < 2 || dir[n - 1] != ':' || !std::isalpha(static_cast<unsigned char>(dir[n - 2]))) return false;
+    return n == 2 || isSeparator(dir[n - 3], windowsStyle);
 }
 
-// The path without its last component and the separator before it.
-// "talk.mkv" -> "."; "/a/b.mkv" -> "/a"; "/b.mkv" -> "/".
-std::string directoryOf(const std::string& path, const std::string& name) {
-    std::string dir = path.substr(0, path.size() - name.size());
-    while (dir.size() > 1 && isSeparator(dir.back())) dir.pop_back();
-    if (dir.empty()) return ".";
-    return dir;
-}
+#ifdef _WIN32
+constexpr bool kWindowsStyle = true;
+#else
+constexpr bool kWindowsStyle = false;
+#endif
 
 }  // namespace
 
+std::string directoryOfPath(const std::string& path, bool windowsStyle) {
+    std::size_t cut = path.size();
+    while (cut > 0 && !isSeparator(path[cut - 1], windowsStyle)) --cut;
+    if (cut == 0) {
+        // "E:clip.mkv" is relative to the current directory on drive E:.
+        if (windowsStyle && path.size() > 2 && path[1] == ':' &&
+            std::isalpha(static_cast<unsigned char>(path[0])))
+            return path.substr(0, 2);
+        return ".";
+    }
+    std::string dir = path.substr(0, cut);
+    const char separator = dir.back();
+    while (dir.size() > 1 && isSeparator(dir.back(), windowsStyle)) dir.pop_back();
+    // "E:" alone means "the current directory on E:"; the root is "E:" plus its separator.
+    if (windowsStyle && endsWithDrive(dir, windowsStyle)) dir += separator;
+    return dir;
+}
+
+std::string recognitionDirectoryName(const std::string& directory) {
+    const std::size_t sep = directory.find_last_of(kWindowsStyle ? "/\\" : "/");
+    const std::string last = sep == std::string::npos ? directory : directory.substr(sep + 1);
+    if (directory != "." && last != "." && last != "..") return last;
+    // "." and ".." name nothing; ask the file system what they are.
+#ifdef _WIN32
+    const std::wstring wide = widen(directory);
+    wchar_t buf[MAX_PATH * 4];
+    const DWORD n = GetFullPathNameW(wide.c_str(), static_cast<DWORD>(sizeof buf / sizeof *buf), buf, nullptr);
+    if (n == 0 || n >= sizeof buf / sizeof *buf) return last;
+    return fsys::fileName(narrow(std::wstring(buf, n)));
+#else
+    char buf[PATH_MAX];
+    if (!::realpath(directory.c_str(), buf)) return last;
+    return fsys::fileName(buf);
+#endif
+}
+
 FileTrackSource::FileTrackSource(const MetadataSource& inner, const std::string& path) : inner_(inner) {
     const std::string name = fsys::fileName(path);
-    const std::string directory = directoryOf(path, name);
-    path_ = recognizePath(name, fsys::fileName(directory));
+    const std::string directory = directoryOfPath(path, kWindowsStyle);
+    path_ = recognizePath(name, recognitionDirectoryName(directory));
 
     const std::optional<fsys::FileInfo> info = fsys::stat(path);
     if (!info) return;
@@ -61,7 +107,7 @@ FileTrackSource::FileTrackSource(const MetadataSource& inner, const std::string&
     if (info->accessed) text("Accessed", formatUtcTime(*info->accessed));
     if (info->mode) {
         char buf[16];
-        std::snprintf(buf, sizeof buf, "%04o", info->mode);
+        std::snprintf(buf, sizeof buf, "%04o", *info->mode);
         text("Mode", buf);
     }
     text("Owner", info->owner);

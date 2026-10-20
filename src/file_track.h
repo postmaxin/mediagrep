@@ -8,6 +8,18 @@
 
 namespace mediagrep {
 
+// Exposed for tests. The path without its last component and the separator
+// before it ("." for a bare name); a Windows drive root keeps its
+// separator (drive E: stays "E:" plus its separator). `windowsStyle` makes the
+// backslash a separator too; FileTrackSource passes the platform's.
+std::string directoryOfPath(const std::string& path, bool windowsStyle);
+
+// The name of `directory` as the Path recognizers should see it. A
+// directory shown as "." or ending in ".." or "." says nothing, so it is
+// resolved to the real parent's name (realpath, GetFullPathNameW). Anything
+// else is just its last component.
+std::string recognitionDirectoryName(const std::string& directory);
+
 // Wraps `inner` (which must outlive this object) and answers for
 // TrackKind::File and TrackKind::Path itself.
 //
