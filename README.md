@@ -35,6 +35,8 @@ order of magnitude faster on a large collection.
 Prebuilt archives for Windows x64 and Linux x86_64 are attached to each
 [release](https://github.com/postmaxin/mediagrep/releases). The Windows
 one includes `MediaInfo.dll`; on Linux, install the library as below.
+The Linux binary needs glibc 2.34 or later (Debian 12, Ubuntu 22.04,
+RHEL 9 and newer); on older systems, build from source.
 
 mediagrep needs MediaInfoLib at runtime. By default it loads the shared
 library when it starts, so any MediaInfo installation works:
