@@ -224,6 +224,8 @@ An alias matches if any of its fields does, and the output names the
 field that matched.
 .SH EXIT STATUS
 0 if any file was selected, 1 if none was, 2 if an error occurred.
+Failing to write the output, such as to a full disk, is an error and is
+reported as "write error".
 With
 .BR \-q ,
 a match gives 0 even if an error also occurred.

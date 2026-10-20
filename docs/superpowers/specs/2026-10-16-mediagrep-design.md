@@ -344,6 +344,9 @@ walker, like grep.
   warning but not the status.
 - A file the library opens but reports no format for (sidecar, text):
   skipped silently.
+- A failure writing stdout, including at the final flush when stdout is
+  a file or pipe and the failure only surfaces there: `mediagrep: write
+  error: ...` on stderr and exit 2, as GNU grep does.
 - Expression parse error: message with byte offset and a caret line,
   exit 2 before any file is read.
 - Unknown field name: not an error (fields vary by format). The
