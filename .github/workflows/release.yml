@@ -1,0 +1,126 @@
+name: Release
+
+# Pushing a tag like v0.1.0 builds the release archives and creates a
+# *draft* GitHub release with them; publishing it stays a human decision.
+# Run it by hand (workflow_dispatch) to build the archives without a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MEDIAINFO_VERSION: "26.10"
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Check the tag against CMakeLists.txt
+        run: |
+          project=$(sed -n 's/^project(mediagrep VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$project" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match project version $project"
+              exit 1
+            fi
+            echo "version=$tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$project-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    name: Windows x64
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get the MediaInfo DLL and its license
+        shell: pwsh
+        run: |
+          $v = $env:MEDIAINFO_VERSION
+          $url = "https://mediaarea.net/download/binary/libmediainfo0/$v/MediaInfo_DLL_${v}_Windows_x64_WithoutInstaller.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\mediainfo.zip"
+          Expand-Archive "$env:RUNNER_TEMP\mediainfo.zip" -DestinationPath "$env:RUNNER_TEMP\mediainfo"
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MediaArea/MediaInfoLib/v$v/License.html" -OutFile "$env:RUNNER_TEMP\mediainfo\License.html"
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP\mediainfo"
+      - name: Build
+        run: |
+          cmake -S . -B build -A x64
+          cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "mediagrep-${{ needs.version.outputs.version }}-windows-x64"
+          $d = "dist\$name"
+          New-Item -ItemType Directory -Force $d | Out-Null
+          Copy-Item build\Release\mediagrep.exe, README.md, CHANGELOG.md $d
+          Copy-Item LICENSE "$d\LICENSE.txt"
+          Copy-Item "$env:RUNNER_TEMP\mediainfo\MediaInfo.dll" $d
+          Copy-Item "$env:RUNNER_TEMP\mediainfo\License.html" "$d\MediaInfoLib-License.html"
+          & "$d\mediagrep.exe" --version
+          Compress-Archive -Path $d -DestinationPath "dist\$name.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.zip
+
+  linux:
+    name: Linux x86_64
+    needs: version
+    # The oldest supported runner, for the oldest glibc requirement.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MediaInfoLib (for the tests; the binary loads it at runtime)
+        run: sudo apt-get update && sudo apt-get install -y libmediainfo0v5 ninja-build
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
+          cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Package
+        run: |
+          name="mediagrep-${{ needs.version.outputs.version }}-linux-x86_64"
+          mkdir -p "dist/$name"
+          cp build/mediagrep build/mediagrep.1 README.md CHANGELOG.md LICENSE "dist/$name/"
+          strip "dist/$name/mediagrep"
+          "dist/$name/mediagrep" --version
+          ldd "dist/$name/mediagrep"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*.tar.gz
+
+  draft:
+    name: Draft release
+    needs: [version, windows, linux]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dist && sha256sum * > SHA256SUMS)
+          notes=$(awk '/^## \[/{n++} n==1' CHANGELOG.md | tail -n +2)
+          gh release create "$GITHUB_REF_NAME" dist/* --draft \
+            --title "mediagrep ${{ needs.version.outputs.version }}" --notes "$notes"

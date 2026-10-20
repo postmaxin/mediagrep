@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.link }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        link: [dynamic, static]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MediaInfoLib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmediainfo-dev libmediainfo0v5 pkg-config ninja-build
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DMEDIAGREP_LINK_STATIC=${{ matrix.link == 'static' && 'ON' || 'OFF' }}
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Smoke
+        run: ./build/mediagrep --version && ./build/mediagrep -ri engineering tests/fixtures
+
+  macos:
+    name: macOS (${{ matrix.link }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        link: [dynamic, static]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MediaInfoLib
+        run: brew install media-info ninja pkg-config
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DMEDIAGREP_LINK_STATIC=${{ matrix.link == 'static' && 'ON' || 'OFF' }}
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Smoke
+        run: ./build/mediagrep --version && ./build/mediagrep -ri engineering tests/fixtures
+
+  windows:
+    name: Windows (dynamic)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MediaInfo DLL
+        shell: pwsh
+        run: |
+          $v = "26.10"
+          $url = "https://mediaarea.net/download/binary/libmediainfo0/$v/MediaInfo_DLL_${v}_Windows_x64_WithoutInstaller.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\mediainfo.zip"
+          Expand-Archive "$env:RUNNER_TEMP\mediainfo.zip" -DestinationPath "$env:RUNNER_TEMP\mediainfo"
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP\mediainfo"
+      - name: Configure
+        run: cmake -S . -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Smoke
+        shell: pwsh
+        run: |
+          .\build\Release\mediagrep.exe --version
+          .\build\Release\mediagrep.exe -ri engineering tests\fixtures
