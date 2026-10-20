@@ -1,0 +1,293 @@
+#include "progress.h"
+
+#include <algorithm>
+#include <cstdio>
+#include <vector>
+
+#include "term.h"
+
+namespace mediagrep {
+
+namespace {
+
+constexpr std::size_t kBarWidth = 20;
+
+struct CodePoint {
+    char32_t value;
+    std::size_t start;   // byte offset
+    std::size_t length;  // bytes
+};
+
+// Lenient UTF-8 decoding: a malformed byte decodes as itself, length 1.
+std::vector<CodePoint> decode(std::string_view s) {
+    std::vector<CodePoint> out;
+    std::size_t i = 0;
+    while (i < s.size()) {
+        const auto b = static_cast<unsigned char>(s[i]);
+        std::size_t len = 1;
+        char32_t cp = b;
+        if (b >= 0xF0 && b < 0xF8) { len = 4; cp = b & 0x07; }
+        else if (b >= 0xE0 && b < 0xF0) { len = 3; cp = b & 0x0F; }
+        else if (b >= 0xC0 && b < 0xE0) { len = 2; cp = b & 0x1F; }
+        if (len > 1) {
+            bool ok = i + len <= s.size();
+            for (std::size_t k = 1; ok && k < len; ++k) {
+                const auto c = static_cast<unsigned char>(s[i + k]);
+                if ((c & 0xC0) != 0x80) ok = false;
+                else cp = (cp << 6) | (c & 0x3F);
+            }
+            if (!ok) { len = 1; cp = b; }
+        }
+        out.push_back({cp, i, len});
+        i += len;
+    }
+    return out;
+}
+
+bool isWide(char32_t cp) {
+    return (cp >= 0x1100 && cp <= 0x115F) || (cp >= 0x2E80 && cp <= 0xA4CF && cp != 0x303F) ||
+           (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) ||
+           (cp >= 0xFE30 && cp <= 0xFE4F) || (cp >= 0xFF00 && cp <= 0xFF60) ||
+           (cp >= 0xFFE0 && cp <= 0xFFE6) || (cp >= 0x1F300 && cp <= 0x1FAFF) ||
+           (cp >= 0x20000 && cp <= 0x3FFFD);
+}
+
+std::size_t columnsOf(char32_t cp) { return isWide(cp) ? 2 : 1; }
+
+// Replaces C0 and C1 control characters, which could move the cursor or
+// start an escape sequence, with '?'.
+std::string sanitize(std::string_view s) {
+    std::string out;
+    out.reserve(s.size());
+    for (const CodePoint& c : decode(s)) {
+        const bool c1 = c.length > 1 && c.value >= 0x80 && c.value <= 0x9F;
+        if (c.value < 0x20 || c.value == 0x7F || c1)
+            out += '?';
+        else
+            out.append(s.substr(c.start, c.length));
+    }
+    return out;
+}
+
+// Keeps the end of `s`, which is the informative part of a path, prefixed
+// with "..." when anything was cut. The result is at most `cols` wide.
+std::string truncateLeft(const std::string& s, std::size_t cols) {
+    if (displayWidth(s) <= cols) return s;
+    if (cols <= 3) return std::string(cols, '.');
+    const std::vector<CodePoint> cps = decode(s);
+    std::size_t used = 0;
+    std::size_t start = s.size();
+    for (auto it = cps.rbegin(); it != cps.rend(); ++it) {
+        const std::size_t w = columnsOf(it->value);
+        if (used + w > cols - 3) break;
+        used += w;
+        start = it->start;
+    }
+    return "..." + s.substr(start);
+}
+
+std::string countsText(const ProgressState& s) {
+    return std::to_string(s.done) + "/" + std::to_string(s.found) + (s.walking ? "+" : "") + " files";
+}
+
+std::string matchedText(const ProgressState& s) {
+    std::string out = ", " + std::to_string(s.matched) + " matched";
+    if (s.errors) out += ", " + std::to_string(s.errors) + (s.errors == 1 ? " error" : " errors");
+    return out;
+}
+
+}  // namespace
+
+std::string formatDuration(double seconds) {
+    const long long total = seconds > 0 ? static_cast<long long>(seconds) : 0;
+    const long long h = total / 3600, m = total / 60 % 60, sec = total % 60;
+    char buf[64];
+    if (h) std::snprintf(buf, sizeof buf, "%lld:%02lld:%02lld", h, m, sec);
+    else std::snprintf(buf, sizeof buf, "%lld:%02lld", m, sec);
+    return buf;
+}
+
+std::size_t displayWidth(std::string_view utf8) {
+    std::size_t total = 0;
+    for (const CodePoint& c : decode(utf8)) total += columnsOf(c.value);
+    return total;
+}
+
+std::string formatProgressLine(const ProgressState& s, std::size_t columns) {
+    const std::size_t max = columns ? columns - 1 : 0;
+    const std::string counts = countsText(s);
+    const std::string matched = matchedText(s);
+    const bool totalKnown = !s.walking && s.found > 0;
+    const std::size_t done = std::min(s.done, s.found);
+
+    std::string time;
+    if (totalKnown && done > 0)
+        time = ", " + formatDuration(s.elapsed / static_cast<double>(done) *
+                                     static_cast<double>(s.found - done)) + " left";
+    else
+        time = ", " + formatDuration(s.elapsed);
+
+    // Most informative first; the first that fits wins.
+    std::vector<std::string> candidates;
+    if (totalKnown) {
+        const std::string percent = std::to_string(done * 100 / s.found) + "%";
+        const std::size_t filled = done * kBarWidth / s.found;
+        const std::string bar =
+            "[" + std::string(filled, '#') + std::string(kBarWidth - filled, '-') + "]";
+        candidates.push_back(percent + " " + bar + " " + counts + matched + time);
+        candidates.push_back(percent + " " + counts + matched + time);
+    }
+    candidates.push_back(counts + matched + time);
+    candidates.push_back(counts + matched);
+    candidates.push_back(counts);
+
+    const auto fits = std::find_if(candidates.begin(), candidates.end(),
+                                   [&](const std::string& c) { return c.size() <= max; });
+    if (fits == candidates.end()) return counts.substr(0, max);
+    std::string line = *fits;
+
+    if (!s.current.empty()) {
+        const std::string name = sanitize(s.current);
+        const std::size_t room = max - line.size();
+        const std::size_t wanted = std::min<std::size_t>(12, displayWidth(name));
+        if (room >= 2 + wanted) line += "  " + truncateLeft(name, room - 2);
+    }
+    return line;
+}
+
+std::string formatProgressLog(const ProgressState& s) {
+    return "progress: " + countsText(s) + matchedText(s) + ", " + formatDuration(s.elapsed) +
+           " elapsed";
+}
+
+// ---------------------------------------------------------------------------
+
+Progress::Progress(Mode mode, bool stdoutIsTerminal, std::chrono::milliseconds logInterval)
+    : mode_(mode),
+      stdoutIsTerminal_(stdoutIsTerminal),
+      logInterval_(logInterval),
+      start_(std::chrono::steady_clock::now()) {
+    if (mode_ != Mode::Off) ticker_ = std::thread([this] { loop(); });
+}
+
+Progress::~Progress() { stop(); }
+
+void Progress::loop() {
+    using namespace std::chrono;
+    // Quick searches finish before the line would appear, so they never flicker.
+    const auto firstDraw = start_ + milliseconds(500);
+    auto nextLog = start_ + logInterval_;
+    std::unique_lock<std::mutex> lock(mutex_);
+    while (!stopping_) {
+        wake_.wait_for(lock, milliseconds(100), [&] { return stopping_; });
+        if (stopping_) return;
+        const auto now = steady_clock::now();
+        if (mode_ == Mode::Line) {
+            if (now >= firstDraw) drawLocked();
+        } else if (now >= nextLog) {
+            const std::string text = "mediagrep: " + formatProgressLog(snapshotLocked()) + "\n";
+            std::fputs(text.c_str(), stderr);
+            std::fflush(stderr);
+            nextLog = now + logInterval_;
+        }
+    }
+}
+
+ProgressState Progress::snapshotLocked() const {
+    ProgressState s = state_;
+    s.elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start_).count();
+    return s;
+}
+
+void Progress::drawLocked() {
+    const std::string line = formatProgressLine(snapshotLocked(), term::stderrWidth());
+    if (drawn_ && line == drawnLine_) return;
+    const std::size_t w = displayWidth(line);
+    std::string buf = "\r" + line;
+    if (drawn_ && drawnWidth_ > w) buf += std::string(drawnWidth_ - w, ' ');
+    std::fwrite(buf.data(), 1, buf.size(), stderr);
+    std::fflush(stderr);
+    drawn_ = true;
+    drawnWidth_ = std::max(w, drawnWidth_);
+    drawnLine_ = line;
+}
+
+void Progress::clearLocked() {
+    if (!drawn_) return;
+    const std::string buf = "\r" + std::string(drawnWidth_, ' ') + "\r";
+    std::fwrite(buf.data(), 1, buf.size(), stderr);
+    std::fflush(stderr);
+    drawn_ = false;
+    drawnWidth_ = 0;
+    drawnLine_.clear();
+}
+
+void Progress::found() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++state_.found;
+}
+
+void Progress::walkDone() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    state_.walking = false;
+}
+
+void Progress::started(const std::string& path) {
+    if (mode_ == Mode::Off) return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    state_.current = path;
+}
+
+void Progress::finished(bool selected, bool error) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++state_.done;
+    if (selected) ++state_.matched;
+    if (error) ++state_.errors;
+}
+
+void Progress::error() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++state_.errors;
+}
+
+bool Progress::out(const std::string& text) {
+    if (text.empty()) return true;
+    std::lock_guard<std::mutex> lock(mutex_);
+    const bool shared = mode_ == Mode::Line && stdoutIsTerminal_;
+    if (shared) clearLocked();
+    const bool ok = std::fwrite(text.data(), 1, text.size(), stdout) == text.size();
+    if (shared) std::fflush(stdout);
+    return ok && !std::ferror(stdout);
+}
+
+void Progress::err(const std::string& text) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (mode_ == Mode::Line) {
+        std::fflush(stdout);
+        clearLocked();
+    }
+    std::fputs(text.c_str(), stderr);
+    std::fflush(stderr);
+}
+
+void Progress::stop() {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (stopped_) return;
+        stopped_ = true;
+        stopping_ = true;
+    }
+    wake_.notify_all();
+    if (ticker_.joinable()) ticker_.join();
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (mode_ == Mode::Line) {
+        clearLocked();
+    } else if (mode_ == Mode::Log) {
+        std::fflush(stdout);
+        const std::string text = "mediagrep: " + formatProgressLog(snapshotLocked()) + "\n";
+        std::fputs(text.c_str(), stderr);
+        std::fflush(stderr);
+    }
+}
+
+}  // namespace mediagrep
