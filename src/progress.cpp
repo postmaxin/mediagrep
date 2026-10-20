@@ -250,13 +250,14 @@ void Progress::error() {
     ++state_.errors;
 }
 
-void Progress::out(const std::string& text) {
-    if (text.empty()) return;
+bool Progress::out(const std::string& text) {
+    if (text.empty()) return true;
     std::lock_guard<std::mutex> lock(mutex_);
     const bool shared = mode_ == Mode::Line && stdoutIsTerminal_;
     if (shared) clearLocked();
-    std::fwrite(text.data(), 1, text.size(), stdout);
+    const bool ok = std::fwrite(text.data(), 1, text.size(), stdout) == text.size();
     if (shared) std::fflush(stdout);
+    return ok && !std::ferror(stdout);
 }
 
 void Progress::err(const std::string& text) {

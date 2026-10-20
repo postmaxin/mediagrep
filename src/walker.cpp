@@ -56,7 +56,10 @@ struct Walker {
         onError(path, message);
     }
 
+    bool stopped() const { return options.cancelled && options.cancelled(); }
+
     void root(const std::string& path) {
+        if (stopped()) return;
         std::string error;
         const fsys::FileType type = fsys::status(path, &error);
         if (!error.empty()) { fail(path, error); return; }
@@ -78,6 +81,7 @@ struct Walker {
         std::sort(names.begin(), names.end());
 
         for (const std::string& name : names) {
+            if (stopped()) return;
             const std::string child = fsys::join(dir, name);
             if (!options.followSymlinks && fsys::isSymlink(child)) continue;
             error.clear();

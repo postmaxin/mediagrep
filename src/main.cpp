@@ -145,6 +145,11 @@ int run(const Options& options) {
     Progress progress(progressMode(options), term::stdoutIsTerminal());
     std::atomic<bool> anySelected{false};
     std::atomic<bool> anyError{false};
+    // Set once nothing more can change the outcome: -q has its match, or
+    // stdout is gone (a closed pipe on Windows, where there is no SIGPIPE).
+    std::atomic<bool> stop{false};
+    std::atomic<bool> writeFailed{false};
+    walkOptions.cancelled = [&] { return stop.load(); };
     std::vector<std::size_t> counts(options.paths.size(), 0);  // emit thread only
     std::set<std::string> warned;                               // emit thread only
 
@@ -173,6 +178,7 @@ int run(const Options& options) {
     };
 
     auto emit = [&](Result&& r) {
+        if (stop) return;
         if (r.error) {
             anyError = true;
             progress.finished(false, true);
@@ -193,7 +199,11 @@ int run(const Options& options) {
             ++counts[r.root];
         }
         progress.finished(selected, false);
-        progress.out(formatFile(options, r.display, r.match));
+        if (!progress.out(formatFile(options, r.display, r.match))) {
+            writeFailed = true;
+            stop = true;
+        }
+        if (selected && options.quiet) stop = true;
     };
 
     // Runs on the walker thread.
@@ -218,7 +228,9 @@ int run(const Options& options) {
     });
     {
         OrderedPool<Job, Result> pool(jobs, work, emit);
-        while (std::optional<Job> job = pending.pop()) pool.submit(std::move(*job));
+        // Keep draining after a stop so the walker never blocks on a full queue.
+        while (std::optional<Job> job = pending.pop())
+            if (!stop) pool.submit(std::move(*job));
         pool.finish();
     }
     walker.join();
@@ -229,6 +241,8 @@ int run(const Options& options) {
             write(options.paths[i] + ": " + std::to_string(counts[i]) + sep);
     std::fflush(stdout);
 
+    if (writeFailed) return 2;
+    if (options.quiet && anySelected) return 0;  // grep -q: a match wins over errors
     if (anyError) return 2;
     return anySelected ? 0 : 1;
 }

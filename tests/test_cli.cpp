@@ -218,3 +218,8 @@ TEST_CASE("cli: --progress without a terminal writes a summary line to stderr") 
     CHECK(r.out.find("mediagrep: progress: 5/5 files, 2 matched, ") != std::string::npos);
     CHECK(run("-r -l -e \"Video/Height < 1000\" .").out == "./clip.mp4\n./talk.mkv\n");
 }
+
+TEST_CASE("cli: -q exits 0 on a match even when another path is an error, like grep") {
+    CHECK(run("-q -e \"Audio/Language = ja\" talk.mkv nope.mkv").status == 0);
+    CHECK(run("-q -e \"Audio/Language = fr\" talk.mkv nope.mkv").status == 2);
+}

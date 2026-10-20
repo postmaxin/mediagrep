@@ -56,7 +56,7 @@ public:
     void finished(bool selected, bool error);
     void error();                          // an error not tied to a file
 
-    void out(const std::string& text);     // write to stdout
+    bool out(const std::string& text);     // write to stdout; false if it failed
     void err(const std::string& text);     // write to stderr
 
     // Clears the line (Line) or writes the summary (Log). Idempotent.

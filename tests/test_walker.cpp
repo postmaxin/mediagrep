@@ -153,3 +153,13 @@ TEST_CASE("without recurse, a directory root is 'Is a directory' and file roots 
     REQUIRE(out.size() == 1);
     CHECK(rel(t, out[0]) == "top.mp3");
 }
+
+TEST_CASE("walk stops early once cancelled") {
+    Tree t;
+    WalkOptions opts = recursive();
+    std::vector<std::string> out;
+    opts.cancelled = [&] { return !out.empty(); };
+    walk({t.t.root, t.path("top.mp3")}, opts, [&](const std::string& p) { out.push_back(p); },
+         [](const std::string&, const std::string&) {});
+    CHECK(out.size() == 1);
+}

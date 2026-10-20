@@ -13,6 +13,7 @@ struct WalkOptions {
     bool followSymlinks = false;        // -R; symlinks given as roots are always followed
     std::vector<std::string> include;   // --include globs; empty means everything
     std::vector<std::string> exclude;   // --exclude globs
+    std::function<bool()> cancelled;    // checked before each entry; stops the walk
 };
 
 // Shell-style glob against a file name: '*', '?', '[abc]', '[a-z]', '[!abc]'.
