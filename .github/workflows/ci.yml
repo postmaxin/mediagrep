@@ -94,3 +94,46 @@ jobs:
         run: |
           .\build\Release\mediagrep.exe --version
           .\build\Release\mediagrep.exe -ri engineering tests\fixtures
+
+  # The BSDs run in virtual machines (vmactions), so these are much slower
+  # than the jobs above. Each builds with the system's own compiler and runs
+  # the whole suite against the system MediaInfoLib package.
+  freebsd:
+    name: FreeBSD
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "15.1"
+          prepare: |
+            pkg install -y cmake ninja pkgconf libmediainfo
+          run: |
+            set -eux
+            uname -a
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+            cmake --build build
+            ctest --test-dir build --output-on-failure
+            ./build/mediagrep --version
+            ./build/mediagrep -ri engineering tests/fixtures
+
+  openbsd:
+    name: OpenBSD
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test in OpenBSD
+        uses: vmactions/openbsd-vm@v1
+        with:
+          release: "8.0"
+          prepare: |
+            pkg_add cmake ninja
+            pkg_info -Q mediainfo || true
+          run: |
+            set -eux
+            uname -a
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+            cmake --build build
