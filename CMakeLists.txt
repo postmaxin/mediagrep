@@ -170,6 +170,7 @@ if(MEDIAGREP_BUILD_TESTS)
         tests/test_path.cpp
         tests/test_progress.cpp
         tests/test_regex_limits.cpp
+        tests/test_term.cpp
         tests/test_pool.cpp
         tests/test_units.cpp
         tests/test_utf.cpp

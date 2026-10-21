@@ -206,7 +206,7 @@ void Progress::loop() {
             if (now >= firstDraw) drawLocked();
         } else if (now >= nextLog) {
             const std::string text = "mediagrep: " + formatProgressLog(snapshotLocked()) + "\n";
-            std::fputs(text.c_str(), stderr);
+            term::writeStderr(text);
             std::fflush(stderr);
             nextLog = now + logInterval_;
         }
@@ -225,7 +225,7 @@ void Progress::drawLocked() {
     if (drawn_ && line == drawnLine_) return;
     const std::size_t w = displayWidth(line);
     const std::string buf = redrawText(line, drawn_ ? drawnWidth_ : 0, columns);
-    std::fwrite(buf.data(), 1, buf.size(), stderr);
+    term::writeStderr(buf);
     std::fflush(stderr);
     drawn_ = true;
     // Remember only what can still be on this line: after a shrink the old
@@ -237,7 +237,7 @@ void Progress::drawLocked() {
 void Progress::clearLocked() {
     if (!drawn_) return;
     const std::string buf = clearText(drawnWidth_, term::stderrWidth());
-    std::fwrite(buf.data(), 1, buf.size(), stderr);
+    term::writeStderr(buf);
     std::fflush(stderr);
     drawn_ = false;
     drawnWidth_ = 0;
@@ -277,9 +277,9 @@ bool Progress::out(const std::string& text) {
     std::lock_guard<std::mutex> lock(mutex_);
     const bool shared = mode_ == Mode::Line && stdoutIsTerminal_;
     if (shared) clearLocked();
-    const bool ok = std::fwrite(text.data(), 1, text.size(), stdout) == text.size();
+    const bool ok = term::writeStdout(text);
     if (shared) std::fflush(stdout);
-    return ok && !std::ferror(stdout);
+    return ok;
 }
 
 void Progress::err(const std::string& text) {
@@ -288,7 +288,7 @@ void Progress::err(const std::string& text) {
         std::fflush(stdout);
         clearLocked();
     }
-    std::fputs(text.c_str(), stderr);
+    term::writeStderr(text);
     std::fflush(stderr);
 }
 
@@ -307,7 +307,7 @@ void Progress::stop() {
     } else if (mode_ == Mode::Log) {
         std::fflush(stdout);
         const std::string text = "mediagrep: " + formatProgressLog(snapshotLocked()) + "\n";
-        std::fputs(text.c_str(), stderr);
+        term::writeStderr(text);
         std::fflush(stderr);
     }
 }

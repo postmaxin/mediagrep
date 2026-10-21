@@ -36,12 +36,10 @@ namespace {
 #endif
 
 void warn(const std::string& message) {
-    std::fputs(("mediagrep: " + message + "\n").c_str(), stderr);
+    term::writeStderr("mediagrep: " + message + "\n");
 }
 
-void write(const std::string& s) {
-    if (!s.empty()) std::fwrite(s.data(), 1, s.size(), stdout);
-}
+void write(const std::string& s) { term::writeStdout(s); }
 
 int dumpFields(const Options& options) {
     MediaInfoSource src(options.parseSpeed);
@@ -79,7 +77,7 @@ ExprPtr buildExpression(const Options& options) {
             parts.push_back(parse(text));
         } catch (const ParseError& e) {
             warn("in expression: " + std::string(e.what()));
-            std::fputs(("  " + text + "\n  " + std::string(e.offset, ' ') + "^\n").c_str(), stderr);
+            term::writeStderr("  " + text + "\n  " + std::string(e.offset, ' ') + "^\n");
             return nullptr;
         }
     }
@@ -256,7 +254,7 @@ int realMain(const std::vector<std::string>& args) {
     const std::optional<Options> options = parseArgs(args, error);
     if (!options) {
         warn(error);
-        std::fputs(usageText().c_str(), stderr);
+        term::writeStderr(usageText());
         return 2;
     }
     if (options->help) {
@@ -296,7 +294,6 @@ int finish(int status) {
 #ifdef _WIN32
 int wmain(int argc, wchar_t** argv) {
     _setmode(_fileno(stdout), _O_BINARY);
-    term::useUtf8Console();
     std::vector<std::string> args;
     for (int i = 1; i < argc; ++i) args.push_back(narrow(argv[i]));
     return finish(realMain(args));

@@ -13,6 +13,14 @@ follow [Semantic Versioning](https://semver.org/).
   hanging.
 - Decimal duration and size operands are exact: `Duration = 1.001s` now
   equals a duration of 1001 ms instead of falling a rounding error short.
+- Windows: two mediagrep runs sharing one console no longer garble each
+  other's non-ASCII output. mediagrep used to switch the console's code
+  page to UTF-8 and restore it at exit; the code page belongs to the whole
+  console, so the first run to exit changed it under the other. Output to
+  a console is now written as UTF-16 with `WriteConsoleW`, and the code
+  page is left alone. Output redirected to a file or pipe is unchanged
+  (UTF-8). NUL is no longer treated as a terminal for progress and
+  match output.
 
 ## [0.1.0] - 2026-10-21
 
