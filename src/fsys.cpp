@@ -251,7 +251,10 @@ std::optional<FileInfo> stat(const std::string& path) {
     fi.size = static_cast<std::uint64_t>(st.st_size);
     fi.modified = st.st_mtime;
     fi.accessed = st.st_atime;
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    // OpenBSD is left out on purpose: its public struct stat has no birth
+    // time (only a private __st_birthtim), so the File/Created field is
+    // simply absent there.
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__)
     fi.created = st.st_birthtime;
 #elif defined(__linux__) && defined(STATX_BTIME)
     struct statx sx;
