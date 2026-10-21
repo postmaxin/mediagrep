@@ -36,6 +36,12 @@ Prebuilt packages for Windows x64 and Linux x86_64 are attached to each
 [release](https://github.com/postmaxin/mediagrep/releases). The Windows
 zip includes `MediaInfo.dll`.
 
+On macOS, install from the [Homebrew tap](https://github.com/postmaxin/homebrew-tap). It builds from source (Apple Silicon and Intel) and pulls in `libmediainfo`:
+
+```sh
+brew install postmaxin/tap/mediagrep
+```
+
 On Debian, Ubuntu and Fedora, install the `.deb` or `.rpm` from the
 release. It pulls in MediaInfoLib as a dependency:
 
