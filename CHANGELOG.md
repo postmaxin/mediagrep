@@ -82,4 +82,9 @@ The first release.
   starts on a PC without the redistributable.
 - A man page, installed by `cmake --install`, along with the license
   notices, including MediaInfoLib's, which the release archives carry too.
+- Each release attaches a `.deb` and an `.rpm` for x86_64 Linux (built with
+  CPack, `cpack --config build/CPackConfig.cmake`). They depend on
+  `libmediainfo0v5` (Debian, Ubuntu) or `libmediainfo` (Fedora), so
+  installing one also installs MediaInfoLib, which neither package manager
+  would otherwise find because mediagrep loads it with `dlopen`.
 - `SECURITY.md` says how to report a vulnerability privately.

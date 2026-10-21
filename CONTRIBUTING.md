@@ -71,6 +71,16 @@ Each can be run locally on Linux; use a separate build directory.
   CI runs each target for 60 seconds. A crash is uploaded as a workflow
   artifact; reproduce it with `./fuzz_parser crash-FILE`.
 
+- **Packages.** The release workflow builds the `.deb` and `.rpm` with CPack
+  (`cmake/Packaging.cmake`; CMake 3.19 or later), runs `lintian` on the
+  `.deb` (errors fail the job), and installs each package into a clean
+  `debian:stable` or `fedora:latest` container to check that its
+  dependencies pull in MediaInfoLib. To try it locally, after a Release
+  build, run `cpack --config build/CPackConfig.cmake -B pkg`. Run the
+  workflow by hand from a branch (Actions, Release, Run workflow) to get
+  the packages as artifacts without a release. If you add a file to the
+  install rules, check that both packages list it.
+
 A suppression or a disabled check needs a comment saying why. Do not add
 one to hide a real defect; file an issue first and link it.
 
