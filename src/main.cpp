@@ -1,10 +1,12 @@
 // mediagrep: grep for media metadata.
 #include <atomic>
+#include <cerrno>
 #include <cstdio>
 #include <memory>
 #include <optional>
 #include <set>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -239,7 +241,6 @@ int run(const Options& options) {
     if (options.output == Options::Output::Count && !options.quiet)
         for (std::size_t i = 0; i < options.paths.size(); ++i)
             write(options.paths[i] + ": " + std::to_string(counts[i]) + sep);
-    std::fflush(stdout);
 
     if (writeFailed) return 2;
     if (options.quiet && anySelected) return 0;  // grep -q: a match wins over errors
@@ -276,6 +277,17 @@ int realMain(const std::vector<std::string>& args) {
     return run(*options);
 }
 
+// When stdout is a file or pipe the output sits in a buffer, so a full disk
+// only shows up at this final flush. Like GNU grep, report it and exit 2
+// instead of exiting 0 with the output lost.
+int finish(int status) {
+    errno = 0;
+    if (std::fflush(stdout) == 0 && !std::ferror(stdout)) return status;
+    const int err = errno;
+    warn(err ? "write error: " + std::generic_category().message(err) : "write error");
+    return 2;
+}
+
 }  // namespace
 
 #ifdef _WIN32
@@ -284,11 +296,11 @@ int wmain(int argc, wchar_t** argv) {
     term::useUtf8Console();
     std::vector<std::string> args;
     for (int i = 1; i < argc; ++i) args.push_back(narrow(argv[i]));
-    return realMain(args);
+    return finish(realMain(args));
 }
 #else
 int main(int argc, char** argv) {
     std::vector<std::string> args(argv + 1, argv + argc);
-    return realMain(args);
+    return finish(realMain(args));
 }
 #endif

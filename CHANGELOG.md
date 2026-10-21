@@ -34,7 +34,8 @@ The first release.
 - Directories are entered only with `-r` or `-R`.
 - `-i` ignores case in regexes and equality alike.
 - Exit status 0 when anything was selected, 1 when nothing was, 2 on
-  error.
+  error, including a failure to write the output (checked at the final
+  flush, so `> /dev/full` is reported instead of silently losing it).
 
 ### Running
 

@@ -21,16 +21,8 @@ struct Run {
     std::string out;  // stdout and stderr combined, backslashes normalized to '/'
 };
 
-// Runs `mediagrep <args>` with the fixtures directory as the working directory.
-Run run(const std::string& args) {
-    std::string cmd;
-#ifdef _WIN32
-    cmd = "cd /d \"" MEDIAGREP_FIXTURES_DIR "\" && \"" MEDIAGREP_BINARY "\" " + args + " 2>&1";
-    // cmd.exe needs the whole thing wrapped in quotes when it contains quotes.
-    cmd = "\"" + cmd + "\"";
-#else
-    cmd = "cd \"" MEDIAGREP_FIXTURES_DIR "\" && \"" MEDIAGREP_BINARY "\" " + args + " 2>&1";
-#endif
+// Runs a shell command line and captures its output and exit status.
+Run runShell(const std::string& cmd) {
     FILE* f = POPEN(cmd.c_str(), "r");
     REQUIRE(f != nullptr);
     std::string out;
@@ -44,6 +36,19 @@ Run run(const std::string& args) {
     std::replace(out.begin(), out.end(), '\\', '/');
     out.erase(std::remove(out.begin(), out.end(), '\r'), out.end());
     return {status, out};
+}
+
+// Runs `mediagrep <args>` with the fixtures directory as the working directory.
+Run run(const std::string& args) {
+    std::string cmd;
+#ifdef _WIN32
+    cmd = "cd /d \"" MEDIAGREP_FIXTURES_DIR "\" && \"" MEDIAGREP_BINARY "\" " + args + " 2>&1";
+    // cmd.exe needs the whole thing wrapped in quotes when it contains quotes.
+    cmd = "\"" + cmd + "\"";
+#else
+    cmd = "cd \"" MEDIAGREP_FIXTURES_DIR "\" && \"" MEDIAGREP_BINARY "\" " + args + " 2>&1";
+#endif
+    return runShell(cmd);
 }
 
 }  // namespace
@@ -223,3 +228,19 @@ TEST_CASE("cli: -q exits 0 on a match even when another path is an error, like g
     CHECK(run("-q -e \"Audio/Language = ja\" talk.mkv nope.mkv").status == 0);
     CHECK(run("-q -e \"Audio/Language = fr\" talk.mkv nope.mkv").status == 2);
 }
+
+#ifndef _WIN32
+TEST_CASE("cli: a write error on stdout exits 2 with a message, even when buffered") {
+    // /dev/full accepts the write into stdio's buffer and fails it at the
+    // final flush, so the failure only shows up if that flush is checked.
+    if (std::FILE* full = std::fopen("/dev/full", "w"))
+        std::fclose(full);
+    else
+        return;  // not Linux
+    // Only stdout goes to /dev/full; stderr still reaches the pipe.
+    Run r = runShell("cd \"" MEDIAGREP_FIXTURES_DIR "\" && { \"" MEDIAGREP_BINARY
+                     "\" -r -l -e \"Video/Height < 1000\" . > /dev/full; } 2>&1");
+    CHECK(r.status == 2);
+    CHECK(r.out.find("mediagrep: write error") != std::string::npos);
+}
+#endif

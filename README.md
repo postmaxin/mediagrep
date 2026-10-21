@@ -116,7 +116,8 @@ everything. It appears only after half a second, so quick searches stay
 clean, and it is cleared before each match is printed, so it never mixes
 with output even when stdout is the same terminal.
 
-Exit status is 0 if any file was selected, 1 if none, 2 on error.
+Exit status is 0 if any file was selected, 1 if none, 2 on error, including a
+failure to write the output (a full disk, say), which is reported as `write error`.
 
 ### Patterns
 
