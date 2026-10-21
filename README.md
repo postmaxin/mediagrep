@@ -44,6 +44,19 @@ sudo apt install ./mediagrep_0.1.0-1_amd64.deb     # Debian, Ubuntu
 sudo dnf install ./mediagrep-0.1.0-1.x86_64.rpm    # Fedora
 ```
 
+On a NAS with [Entware](https://github.com/Entware/Entware), download the
+`.ipk` for your architecture (`opkg print-architecture` shows it:
+`x64-3.2`, `aarch64-3.10` or `armv7-3.2`) and install it. opkg also
+installs `libmediainfo` from the Entware feed:
+
+```sh
+opkg install ./mediagrep_0.1.0-1_aarch64-3.10.ipk
+/opt/bin/mediagrep --version
+```
+
+It is built inside Entware, against Entware's glibc, and installs under
+`/opt`. The Linux `.tar.gz` below does not run there.
+
 The `.tar.gz` is the same binary for other Linux distributions; install
 the library as below. The Linux binary needs glibc 2.34 or later (Debian
 12, Ubuntu 22.04, RHEL 9 and newer); on older systems, build from source.
