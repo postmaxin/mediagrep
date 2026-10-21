@@ -8,7 +8,7 @@
 
 set(CPACK_PACKAGE_NAME mediagrep)
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_PACKAGE_CONTACT "Tyler MacDonald <postmaxin@users.noreply.github.com>")
+set(CPACK_PACKAGE_CONTACT "Tyler MacDonald <github@crackerjack.net>")
 set(CPACK_PACKAGE_VENDOR "Tyler MacDonald")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/postmaxin/mediagrep")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "grep for media file metadata")
