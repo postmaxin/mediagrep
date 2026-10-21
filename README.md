@@ -32,9 +32,18 @@ order of magnitude faster on a large collection.
 
 ## Install
 
-Prebuilt packages for Windows x64 and Linux x86_64 are attached to each
-[release](https://github.com/postmaxin/mediagrep/releases). The Windows
-zip includes `MediaInfo.dll`.
+On Windows, install with [winget](https://learn.microsoft.com/windows/package-manager/).
+It puts `mediagrep` on your `PATH`, with `MediaInfo.dll` beside it:
+
+```powershell
+winget install postmaxin.mediagrep
+```
+
+The alternative is the Windows x64 zip attached to each
+[release](https://github.com/postmaxin/mediagrep/releases). It includes
+`MediaInfo.dll`; unzip it and run `mediagrep.exe` from that folder, or add
+the folder to `PATH`. Linux x86_64 packages are attached to the release
+too.
 
 On macOS, install from the [Homebrew tap](https://github.com/postmaxin/homebrew-tap). It builds from source (Apple Silicon and Intel) and pulls in `libmediainfo`:
 

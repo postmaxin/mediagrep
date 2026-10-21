@@ -110,6 +110,29 @@ Each can be run locally on Linux; use a separate build directory.
   changes how the library is located or what `--version` prints, update
   the formula's `test` block too.
 
+- **winget.** `postmaxin.mediagrep` in
+  [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) points
+  at the release's Windows zip. It is not updated automatically (that needs
+  a long-lived token). After publishing a release, with
+  [wingetcreate](https://github.com/microsoft/winget-create) installed
+  (`winget install Microsoft.WingetCreate`):
+
+  ```powershell
+  wingetcreate update postmaxin.mediagrep --version X.Y.Z `
+      --urls https://github.com/postmaxin/mediagrep/releases/download/vX.Y.Z/mediagrep-X.Y.Z-windows-x64.zip
+  ```
+
+  It rewrites the three manifests with the new URL and SHA-256. Before
+  submitting, check that `NestedInstallerFiles.RelativeFilePath` names the
+  new folder (`mediagrep-X.Y.Z-windows-x64\mediagrep.exe`), and that
+  `LicenseUrl` and `ReleaseNotesUrl` point at the new tag. Run `winget
+  validate --manifest <dir>`, and test with `winget install --manifest
+  <dir>` (an administrator enables that once with `winget settings
+  --enable LocalManifestFiles`); `mediagrep --version` in a new shell must
+  report `MediaInfoLib`. Then submit: add `--submit` (it needs a GitHub
+  token; `wingetcreate token --store` saves one) or open the pull request
+  from your fork by hand. Moderators validate the pull request and merge it.
+
 A suppression or a disabled check needs a comment saying why. Do not add
 one to hide a real defect; file an issue first and link it.
 
