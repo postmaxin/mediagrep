@@ -74,9 +74,12 @@ not control cannot run code from it.
 - **Linux and the BSDs:** the soname (`libmediainfo.so.0`) through the
   system loader (`ld.so.cache`, `LD_LIBRARY_PATH`, rpath), then
   `/usr/local/lib`, `/usr/local/lib64`, `/usr/lib` and `/usr/lib64`.
-- **macOS:** next to the `mediagrep` binary, then the soname through the
-  system loader, then the same fixed directories.
-- **Windows:** the directory of `mediagrep.exe` and the system
+- **macOS:** next to the `mediagrep` binary, then `/opt/homebrew/lib`,
+  `/usr/local/lib` and `/usr/lib`. Apple's `dlopen` would search the
+  current directory for a bare name, so mediagrep opens these absolute
+  paths itself and never passes the bare name through.
+- **Windows:** a bare name or a fully qualified path only (`.\x`, `dir\x`
+  and `C:x` are refused); the directory of `mediagrep.exe` and the system
   directories, then the Windows directory and `PATH`. The current
   directory is never searched.
 - A library path given with `-DMEDIAGREP_MEDIAINFO_LIBRARY` is tried

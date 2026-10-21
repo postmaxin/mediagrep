@@ -170,6 +170,9 @@ if(MEDIAGREP_BUILD_TESTS)
         tests/test_walker.cpp
     )
     target_include_directories(mediagrep_tests PRIVATE third_party/doctest)
+    # module_search.h calls dlopen; before glibc 2.34 that lives in libdl, even
+    # in a static-mode build (mediagrep_core only links it in runtime mode).
+    target_link_libraries(mediagrep_tests PRIVATE ${CMAKE_DL_LIBS})
     target_compile_definitions(mediagrep_tests PRIVATE
         MEDIAGREP_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
         MEDIAGREP_UNICODE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/unicode"
