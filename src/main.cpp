@@ -212,6 +212,11 @@ int run(const Options& options) {
         progress.error();
         if (!options.noMessages) progress.err("mediagrep: " + p + ": " + message + "\n");
     };
+    // Not a failure, so it leaves the exit status alone. -s silences it, as in grep.
+    walkOptions.warning = [&](const std::string& p, const std::string& message) {
+        if (!options.noMessages)
+            progress.err("mediagrep: " + p + ": warning: " + message + "\n");
+    };
 
     BoundedQueue<Job> pending(kMaxPendingPaths);
     std::thread walker([&] {

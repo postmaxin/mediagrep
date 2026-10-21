@@ -14,6 +14,9 @@ struct WalkOptions {
     std::vector<std::string> include;   // --include globs; empty means everything
     std::vector<std::string> exclude;   // --exclude globs
     std::function<bool()> cancelled;    // checked before each entry; stops the walk
+    // Something worth saying that is not a failure, so it does not count as an
+    // error: a symlink cycle skipped under -R, as grep does. May be empty.
+    std::function<void(const std::string& path, const std::string& message)> warning;
 };
 
 // Shell-style glob against a file name: '*', '?', '[abc]', '[a-z]', '[!abc]'.
@@ -29,8 +32,12 @@ using ErrorCallback = std::function<void(const std::string& path, const std::str
 // Roots that are files are always visited, ignoring include/exclude.
 // Without `recurse`, a directory root is reported as "Is a directory"
 // and skipped, like grep.
-// Problems (missing root, unreadable directory) go to onError and the walk
-// continues. Returns the number of errors.
+// Problems (missing root or link target, unreadable directory) go to onError
+// and the walk continues. Returns the number of errors.
+// With `followSymlinks`, a directory that is already being walked higher up
+// the current path (a symlink cycle) is skipped with a "recursive directory
+// loop" warning. Reaching the same directory by two routes that are not
+// nested is not a loop, and it is walked each time, like grep.
 std::size_t walk(const std::vector<std::string>& roots, const WalkOptions& options,
                  const FileCallback& onFile, const ErrorCallback& onError);
 

@@ -1,6 +1,7 @@
 #include <algorithm>
 
 #include "doctest.h"
+#include "fsys.h"
 #include "tmp_tree.h"
 #include "walker.h"
 
@@ -163,3 +164,113 @@ TEST_CASE("walk stops early once cancelled") {
          [](const std::string&, const std::string&) {});
     CHECK(out.size() == 1);
 }
+
+#ifndef _WIN32
+namespace {
+
+WalkOptions following() {
+    WalkOptions o = recursive();
+    o.followSymlinks = true;
+    return o;
+}
+
+struct Outcome {
+    std::vector<std::string> files, errors, warnings;
+};
+
+Outcome walkAll(const std::vector<std::string>& roots, WalkOptions opts) {
+    Outcome out;
+    opts.warning = [&](const std::string& p, const std::string& msg) {
+        out.warnings.push_back(slashes(p) + ": " + msg);
+    };
+    walk(roots, opts, [&](const std::string& p) { out.files.push_back(slashes(p)); },
+         [&](const std::string& p, const std::string& msg) {
+             out.errors.push_back(slashes(p) + ": " + msg);
+         });
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("-R: a link to its own directory is a reported loop, and files are listed once") {
+    Tree t;
+    mediagrep::test::makeSymlink(".", t.path("a/loop"));
+    const Outcome o = walkAll({t.t.root}, following());
+    CHECK(o.files.size() == 5);
+    CHECK(o.errors.empty());
+    REQUIRE(o.warnings.size() == 1);
+    CHECK(o.warnings[0] == slashes(t.path("a/loop")) + ": recursive directory loop");
+}
+
+TEST_CASE("-R: a link to an ancestor is a loop, even through several links") {
+    Tree t;
+    mediagrep::test::makeSymlink("..", t.path("a/b/up"));
+    mediagrep::test::makeSymlink("../..", t.path("a/c/top"));
+    const Outcome o = walkAll({t.t.root}, following());
+    CHECK(o.files.size() == 5);
+    CHECK(o.errors.empty());
+    CHECK(o.warnings.size() == 2);
+}
+
+TEST_CASE("-R: the chain starts at a root that is itself a link") {
+    Tree t;
+    mediagrep::test::makeSymlink("..", t.path("a/up"));
+    mediagrep::test::makeSymlink("a", t.path("start"));
+    // start is a. a/up leads to the tree root, which is not on the chain yet, so it is
+    // entered; there, both a and start lead back to a, which is.
+    const Outcome o = walkAll({t.path("start")}, following());
+    CHECK(o.errors.empty());
+    CHECK(o.warnings == std::vector<std::string>{
+        slashes(t.path("start/up/a")) + ": recursive directory loop",
+        slashes(t.path("start/up/start")) + ": recursive directory loop"});
+    CHECK(o.files.size() == 5);  // a's four files, then top.mp3 through up/
+}
+
+TEST_CASE("-R: two links to the same directory (a diamond) are both walked") {
+    Tree t;
+    mediagrep::test::makeSymlink("../b", t.path("a/c/one"));
+    mediagrep::test::makeSymlink("b", t.path("a/two"));
+    const Outcome o = walkAll({t.path("a")}, following());
+    CHECK(o.warnings.empty());
+    CHECK(o.errors.empty());
+    // b itself, plus c/one and two: three visits of b's two files.
+    CHECK(std::count(o.files.begin(), o.files.end(), slashes(t.path("a/two/2.mp4"))) == 1);
+    CHECK(std::count(o.files.begin(), o.files.end(), slashes(t.path("a/c/one/2.mp4"))) == 1);
+    CHECK(std::count(o.files.begin(), o.files.end(), slashes(t.path("a/b/2.mp4"))) == 1);
+    CHECK(o.files.size() == 2 + 3 * 2);  // a's 1.mkv and z.mkv, then b's two files three times
+}
+
+TEST_CASE("-R: a broken link is reported as an error") {
+    Tree t;
+    mediagrep::test::makeSymlink("nowhere", t.path("a/broken"));
+    const Outcome o = walkAll({t.t.root}, following());
+    CHECK(o.files.size() == 5);
+    REQUIRE(o.errors.size() == 1);
+    CHECK(o.errors[0] == slashes(t.path("a/broken")) + ": No such file or directory");
+    CHECK(o.warnings.empty());
+}
+
+TEST_CASE("-r: links are skipped silently, loops and broken ones alike") {
+    Tree t;
+    mediagrep::test::makeSymlink(".", t.path("a/loop"));
+    mediagrep::test::makeSymlink("nowhere", t.path("a/broken"));
+    const Outcome o = walkAll({t.t.root}, recursive());
+    CHECK(o.files.size() == 5);
+    CHECK(o.errors.empty());
+    CHECK(o.warnings.empty());
+}
+
+TEST_CASE("fsys::directoryId is equal for a directory and a link to it, and differs otherwise") {
+    Tree t;
+    mediagrep::test::makeSymlink("a", t.path("link"));
+    const auto a = fsys::directoryId(t.path("a"));
+    const auto viaLink = fsys::directoryId(t.path("link"));
+    const auto b = fsys::directoryId(t.path("a/b"));
+    REQUIRE(a);
+    REQUIRE(viaLink);
+    REQUIRE(b);
+    CHECK(*a == *viaLink);
+    CHECK_FALSE(*a == *b);
+    CHECK_FALSE(fsys::directoryId(t.path("nope")));
+}
+#endif

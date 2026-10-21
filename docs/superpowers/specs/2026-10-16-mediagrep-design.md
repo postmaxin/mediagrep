@@ -134,7 +134,14 @@ used, because toolchains such as Entware's GCC 8 on NAS boxes ship no
 implementation of it. Directories are entered only with `-r`, or `-R`
 to also follow symlinks; otherwise a directory argument is an "Is a
 directory" error, as in grep, so a shell glob searches one level
-without surprises. `--include` and
+without surprises. Under `-R` the walker keeps the identity (device and
+inode, or volume serial and file index) of each directory on the path
+being walked. A child already on that path is a symlink cycle: it is
+skipped with a "recursive directory loop" warning, which does not affect
+the exit status (as in grep). Two links to the same directory that are not
+nested are not a cycle, and the directory is walked each time. A link
+whose target is missing is an error, as is an entry that vanishes between
+the listing and the `stat`. `--include` and
 `--exclude` globs filter by filename. The walk runs on its own thread
 and may discover up to 200,000 paths ahead of the workers, so the
 progress total settles early without unbounded memory. Files are

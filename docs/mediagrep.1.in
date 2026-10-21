@@ -87,6 +87,10 @@ Recurse into directories, not following symbolic links.
 .TP
 .B \-R
 Recurse into directories, following symbolic links.
+A link back to a directory that is already being searched is skipped with a
+warning (\fB\-s\fR silences it), as in
+.BR grep (1).
+A link that leads nowhere is an error.
 .TP
 .BI \-\-include " GLOB"
 Search only files whose name matches

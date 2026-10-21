@@ -27,6 +27,14 @@ inline void makeDir(const std::string& p) {
 #endif
 }
 
+#ifndef _WIN32
+// Makes `link` a symbolic link to `target` (used as written, so it may be relative to
+// the link's directory). POSIX only: creating one on Windows needs a privilege.
+inline void makeSymlink(const std::string& target, const std::string& link) {
+    if (::symlink(target.c_str(), link.c_str()) != 0) std::perror("symlink");
+}
+#endif
+
 inline void removeFile(const std::string& p) {
 #ifdef _WIN32
     _wremove(widen(p).c_str());
@@ -57,7 +65,9 @@ inline void removeTree(const std::string& p) {
     if (fsys::listDirectory(p, names)) {
         for (const auto& n : names) {
             const std::string child = fsys::join(p, n);
-            if (fsys::status(child) == fsys::FileType::Directory) removeTree(child);
+            // A link is removed itself, never followed: one may loop back or leave the tree.
+            if (!fsys::isSymlink(child) && fsys::status(child) == fsys::FileType::Directory)
+                removeTree(child);
             else removeFile(child);
         }
         removeDir(p);
@@ -79,9 +89,12 @@ inline std::string tempBase() {
 // Creates <temp>/<name>-<n> fresh, and removes it on destruction.
 struct TempTree {
     std::string root;
-    explicit TempTree(const std::string& name) {
+    // `base` defaults to the temp directory from the environment. A test that
+    // puts the path in a shell command passes a fixed one instead, so that
+    // CodeQL does not flag the command as built from environment data.
+    explicit TempTree(const std::string& name, const std::string& base = tempBase()) {
         static int counter = 0;
-        root = fsys::join(tempBase(), name + "-" + std::to_string(counter++));
+        root = fsys::join(base, name + "-" + std::to_string(counter++));
         removeTree(root);
         makeDir(root);
     }

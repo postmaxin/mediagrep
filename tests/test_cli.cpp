@@ -4,6 +4,7 @@
 #include <string>
 
 #include "doctest.h"
+#include "tmp_tree.h"
 
 #ifdef _WIN32
 #define POPEN _popen
@@ -253,5 +254,24 @@ TEST_CASE("cli: a write error on stdout exits 2 with a message, even when buffer
                      "\" -r -l -e \"Video/Height < 1000\" . > /dev/full; } 2>&1");
     CHECK(r.status == 2);
     CHECK(r.out.find("mediagrep: write error") != std::string::npos);
+}
+
+TEST_CASE("cli: -R reports a broken link and exits 2, -r skips it, a loop is only a warning") {
+    mediagrep::test::TempTree t{"mediagrep-cli-links", "/tmp"};
+    t.file("clip.mkv");
+    mediagrep::test::makeSymlink("nowhere", t.path("broken"));
+    const std::string root = "\"" + t.root + "\"";
+
+    Run r = run("-R zzz " + root);
+    CHECK(r.status == 2);
+    CHECK(r.out == "mediagrep: " + t.path("broken") + ": No such file or directory\n");
+    CHECK(run("-r zzz " + root).status == 1);
+
+    mediagrep::test::makeSymlink(".", t.path("loop"));
+    r = run("-R zzz " + root);
+    CHECK(r.status == 2);  // the broken link, not the loop
+    CHECK(r.out.find("loop: warning: recursive directory loop") != std::string::npos);
+    CHECK(r.out.find("loop/clip.mkv") == std::string::npos);
+    CHECK(run("-s -R zzz " + root).out.empty());
 }
 #endif
