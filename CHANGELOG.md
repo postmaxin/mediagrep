@@ -39,6 +39,9 @@ The first release.
 - In a quoted string a backslash escapes only the quote and another
   backslash, so regex escapes such as `"^\d+$"` work as written. A track
   index too large for a number is a parse error instead of wrapping.
+- A value that merely starts with a date, such as the file name
+  `2024-03-01.mkv` or the title `2024-03-01 Interview`, is no longer
+  equal to `2024-03-01`; only real date values compare as dates.
 - Exit status 0 when anything was selected, 1 when nothing was, 2 on
   error, including a failure to write the output (checked at the final
   flush, so `> /dev/full` is reported instead of silently losing it).

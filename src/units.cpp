@@ -98,6 +98,40 @@ bool matchShape(std::string_view s, std::size_t& pos, std::string_view pattern) 
     return true;
 }
 
+// What may follow a date (and time) in MediaInfo's output: with seconds,
+// fractional seconds; after a time, "Z" or a numeric offset (+HH, +HH:MM,
+// +HHMM); then an optional " UTC" suffix. Trailing spaces are ignored.
+bool matchDateTail(std::string_view tail, bool hasTime, bool hasSeconds) {
+    std::size_t i = 0;
+    if (hasSeconds && i < tail.size() && tail[i] == '.') {
+        std::size_t digits = 0;
+        ++i;
+        while (i < tail.size() && isDigit(tail[i])) { ++i; ++digits; }
+        if (digits == 0) return false;
+    }
+    if (hasTime && i < tail.size() && tail[i] == 'Z') {
+        ++i;
+    } else if (hasTime && i < tail.size() && (tail[i] == '+' || tail[i] == '-')) {
+        ++i;
+        std::size_t digits = 0;
+        while (i < tail.size() && isDigit(tail[i]) && digits < 2) { ++i; ++digits; }
+        if (digits != 2) return false;
+        if (i < tail.size() && tail[i] == ':') ++i;
+        if (i < tail.size()) {
+            digits = 0;
+            while (i < tail.size() && isDigit(tail[i]) && digits < 2) { ++i; ++digits; }
+            if (digits != 2) return false;
+        }
+    }
+    std::size_t spaces = 0;
+    while (i < tail.size() && tail[i] == ' ') { ++i; ++spaces; }
+    if (spaces > 0 && tail.substr(i, 3) == "UTC") {
+        i += 3;
+        while (i < tail.size() && tail[i] == ' ') ++i;
+    }
+    return i == tail.size();
+}
+
 bool startsWithNoCase(std::string_view s, std::string_view prefix) {
     if (s.size() < prefix.size()) return false;
     for (std::size_t i = 0; i < prefix.size(); ++i)
@@ -134,16 +168,26 @@ std::optional<std::string> normalizeDateValue(std::string_view value) {
     std::string out(value.substr(0, 10));
 
     std::string time = "00:00:00";
+    bool seconds = false;
+    bool hasTime = false;
     if (pos < value.size() && (value[pos] == ' ' || value[pos] == 'T')) {
         const std::size_t timeAt = pos + 1;
         std::size_t p = timeAt;
         if (matchShape(value, p, "DD:DD")) {
             std::size_t q = p;
-            if (matchShape(value, q, ":DD")) p = q;
+            if (matchShape(value, q, ":DD")) {
+                p = q;
+                seconds = true;
+            }
             time = std::string(value.substr(timeAt, p - timeAt));
             if (time.size() == 5) time += ":00";
+            pos = p;
+            hasTime = true;
         }
     }
+    // Only what MediaInfo writes may follow, or "2024-03-01.mkv" and
+    // "2024-03-01 Interview" would count as dates and equal the bare date.
+    if (!matchDateTail(value.substr(pos), hasTime, seconds)) return std::nullopt;
     return out + " " + time;
 }
 
