@@ -47,7 +47,10 @@ The first release.
 - Several files are read at once (`-j`, default 2), with output in a
   stable order.
 - `--progress` shows a status line on stderr, automatically on a
-  terminal, or periodic log lines when stderr is not a terminal.
+  terminal, or periodic log lines when stderr is not a terminal. The
+  line stays inside the window after it is resized smaller, and counts
+  every East Asian wide character (including emoji such as U+2705) as
+  two columns.
 - MediaInfoLib is loaded at runtime by default, so any installation of
   it works; `-DMEDIAGREP_LINK_STATIC=ON` links it at build time instead.
 - Builds with any C++17 compiler on Linux, macOS, Windows and the BSDs,

@@ -33,6 +33,17 @@ std::size_t displayWidth(std::string_view utf8);
 // the last column, so the terminal does not wrap. No trailing newline.
 std::string formatProgressLine(const ProgressState& state, std::size_t width);
 
+// What to write to redraw the line on a terminal `columns` wide, given that
+// `drawnWidth` columns were drawn before: the line, padded with spaces to
+// cover the old one. The padding never goes past columns - 1, because a
+// window shrunk since the last draw would wrap and a carriage return could not get
+// back to the start of the line.
+std::string redrawText(const std::string& line, std::size_t drawnWidth, std::size_t columns);
+
+// What to write to erase a line drawn `drawnWidth` columns wide, capped the
+// same way.
+std::string clearText(std::size_t drawnWidth, std::size_t columns);
+
 // The form logged periodically when stderr is not a terminal.
 std::string formatProgressLog(const ProgressState& state);
 
