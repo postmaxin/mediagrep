@@ -1,7 +1,6 @@
 #include "file_track.h"
 
 #include <cctype>
-#include <climits>
 #include <cstdio>
 #include <cstdlib>
 
@@ -78,9 +77,13 @@ std::string recognitionDirectoryName(const std::string& directory) {
     if (n == 0 || n >= sizeof buf / sizeof *buf) return last;
     return fsys::fileName(narrow(std::wstring(buf, n)));
 #else
-    char buf[PATH_MAX];
-    if (!::realpath(directory.c_str(), buf)) return last;
-    return fsys::fileName(buf);
+    // realpath allocates the result itself, so no PATH_MAX is needed (some
+    // toolchains, such as Entware's GCC 8, do not define it in strict C++).
+    char* resolved = ::realpath(directory.c_str(), nullptr);
+    if (!resolved) return last;
+    const std::string name = fsys::fileName(resolved);
+    std::free(resolved);
+    return name;
 #endif
 }
 
