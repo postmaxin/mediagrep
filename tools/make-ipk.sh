@@ -43,7 +43,7 @@ cat > "$work/control/control" <<EOF
 Package: mediagrep
 Version: $version
 Architecture: $arch
-Maintainer: Tyler MacDonald <postmaxin@users.noreply.github.com>
+Maintainer: Tyler MacDonald <github@crackerjack.net>
 Section: utils
 Priority: optional
 License: BSD-2-Clause
