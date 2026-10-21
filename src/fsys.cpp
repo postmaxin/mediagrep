@@ -210,7 +210,7 @@ FileType status(const std::string& path, std::string* error) {
 std::optional<FileId> directoryId(const std::string& path, std::string* error) {
     StatBuf st;
     if (::stat(path.c_str(), &st) != 0) {
-        if (error) *error = std::strerror(errno);
+        if (error) *error = errorMessage(errno);
         return std::nullopt;
     }
     return FileId{static_cast<std::uint64_t>(st.st_dev), static_cast<std::uint64_t>(st.st_ino)};
