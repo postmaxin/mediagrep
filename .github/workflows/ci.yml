@@ -42,7 +42,8 @@ jobs:
         run: |
           # The checkout belongs to the runner's uid, which the container has no
           # passwd entry for; the File track tests expect its owner to have a name.
-          docker run --rm -e CI_UID="$(id -u)" -e CI_GID="$(id -g)" -v "$PWD":/src:ro \n            i386/debian:trixie-slim bash -euxc '
+          docker run --rm -e CI_UID="$(id -u)" -e CI_GID="$(id -g)" -v "$PWD":/src:ro \
+            i386/debian:trixie-slim bash -euxc '
             apt-get update
             apt-get install -y g++ cmake ninja-build pkg-config libmediainfo-dev libmediainfo0v5
             echo "ci:x:$CI_UID:$CI_GID::/:/bin/sh" >> /etc/passwd
