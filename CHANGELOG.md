@@ -4,6 +4,14 @@ All notable changes to mediagrep are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- If a worker or output thread cannot be started (for instance the process
+  limit is reached), mediagrep now reports the error and exits instead of
+  hanging.
+
 ## [0.1.0] - 2026-10-21
 
 The first release.

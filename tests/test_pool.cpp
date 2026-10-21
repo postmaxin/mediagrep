@@ -1,5 +1,11 @@
 #include <atomic>
+#include <cerrno>
 #include <chrono>
+#include <future>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <system_error>
 #include <thread>
 
 #include "doctest.h"
@@ -16,7 +22,46 @@ int slowDouble(const int& n) {
     return n * 2;
 }
 
+// Builds a pool whose start hook throws for thread `failAt`, on a helper thread
+// so that a constructor which hangs fails the test instead of the whole run.
+// Returns what the constructor did: "threw", "built" or "hung".
+std::string startWithFailureAt(std::size_t workers, std::size_t failAt) {
+    auto outcome = std::make_shared<std::promise<std::string>>();
+    std::future<std::string> answer = outcome->get_future();
+    std::thread([outcome, workers, failAt] {
+        try {
+            OrderedPool<int, int> pool(
+                workers, slowDouble, [](int&&) {},
+                [failAt](std::size_t i) {
+                    if (i == failAt)
+                        throw std::system_error(EAGAIN, std::generic_category(), "no thread");
+                });
+            outcome->set_value("built");
+        } catch (const std::system_error&) {
+            outcome->set_value("threw");
+        }
+    }).detach();
+    if (answer.wait_for(std::chrono::seconds(10)) != std::future_status::ready) return "hung";
+    return answer.get();
+}
+
 }  // namespace
+
+TEST_CASE("a worker that fails to start makes the constructor throw, not hang") {
+    CHECK(startWithFailureAt(4, 2) == "threw");
+}
+
+TEST_CASE("the first worker failing to start throws") {
+    CHECK(startWithFailureAt(3, 0) == "threw");
+}
+
+TEST_CASE("the output thread failing to start throws after the workers began") {
+    CHECK(startWithFailureAt(3, 3) == "threw");
+}
+
+TEST_CASE("a start hook that never throws leaves the pool working") {
+    CHECK(startWithFailureAt(3, 99) == "built");
+}
 
 TEST_CASE("results are emitted in submission order despite parallel completion") {
     std::vector<int> out;
