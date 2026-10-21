@@ -70,6 +70,9 @@ Print only the paths of matching files.
 .TP
 .B \-L
 Print only the paths of media files that do not match.
+With
+.BR \-v ,
+the files that match.
 .TP
 .B \-c
 Print a count of matching files for each

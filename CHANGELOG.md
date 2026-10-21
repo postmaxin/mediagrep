@@ -33,6 +33,8 @@ The first release.
   inverts, `-q` exits at the first match.
 - Directories are entered only with `-r` or `-R`.
 - `-i` ignores case in regexes and equality alike.
+- `-v` with `-L` selects the same files for the output, `-c`, `-q`, the
+  progress count and the exit status. `--parse-speed=nan` is rejected.
 - Exit status 0 when anything was selected, 1 when nothing was, 2 on
   error, including a failure to write the output (checked at the final
   flush, so `> /dev/full` is reported instead of silently losing it).

@@ -95,7 +95,7 @@ is available.
 | `-i` | Case-insensitive matching, for regexes and equality alike. |
 | `-v` | Select files that do not match. |
 | `-l` | Print only matching paths. |
-| `-L` | Print only non-matching paths. |
+| `-L` | Print only non-matching paths. With `-v`, the files that match. |
 | `-c` | Print a count of matching files per `PATH`. |
 | `-0` | End records with NUL instead of newline, for `xargs -0`. |
 | `-r` | Recurse into directories, not following symlinks. |
