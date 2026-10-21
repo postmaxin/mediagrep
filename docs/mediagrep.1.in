@@ -186,6 +186,11 @@ Quote values that contain spaces with
 .B \(dq
 or
 .BR \(aq .
+Inside a quoted string a backslash escapes only the delimiting quote and
+another backslash; any other backslash is kept, so
+.B \(dq^\ed+$\(dq
+is the regular expression
+.BR ^\ed+$ .
 .SS "The File and Path tracks"
 .B File
 holds what

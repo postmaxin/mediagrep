@@ -66,6 +66,30 @@ TEST_CASE("values may be double- or single-quoted and contain spaces") {
 TEST_CASE("backslash escapes the quote character inside a string") {
     CHECK(p("Title = \"say \\\"hi\\\"\"") == "(= Title \"say \\\"hi\\\"\")");
     CHECK(p("Title = 'it\\'s'") == "(= Title \"it's\")");
+    CHECK(p("Title = \"a\\\"b\"") == "(= Title \"a\\\"b\")");
+}
+
+// toString() shows a backslash in a value as two.
+TEST_CASE("any other backslash in a string is kept, so regex escapes survive") {
+    CHECK(p("Title ~ \"^\\d+$\"") == "(~ Title \"^\\\\d+$\")");
+    CHECK(p("Title ~ 'a\\.b'") == "(~ Title \"a\\\\.b\")");
+    CHECK(p("Title ~ \"\\(x\\)\\s\\w\"") == "(~ Title \"\\\\(x\\\\)\\\\s\\\\w\")");
+    // \\ is one backslash, so a doubled-backslash habit still works.
+    CHECK(p("Title ~ \"\\\\d\"") == "(~ Title \"\\\\d\")");
+    CHECK(p("Title = \"\\\\\"") == "(= Title \"\\\\\")");
+    // The other quote character is not special inside a string, so \' stays.
+    CHECK(p("Title ~ \"it\\'s\"") == "(~ Title \"it\\\\'s\")");
+    // A backslash before the closing quote of an unterminated string is
+    // not swallowed silently.
+    CHECK(errorOffset("Title ~ \"abc\\\"") == 8);
+    // A lone trailing backslash is kept and the string is unterminated.
+    CHECK(errorOffset("Title ~ \"abc\\") == 8);
+}
+
+TEST_CASE("a track index too large for a number is a parse error") {
+    CHECK(errorOffset("Audio[18446744073709551617]/Lang = 1") == 6);
+    CHECK(errorOffset("Audio[99999999999999999999999]/Lang = 1") == 6);
+    CHECK(p("Audio[12]/Lang = 1") == "(= Audio[12]/Lang \"1\")");
 }
 
 TEST_CASE("unquoted values keep units and signs") {

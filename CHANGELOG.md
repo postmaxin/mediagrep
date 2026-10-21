@@ -35,6 +35,9 @@ The first release.
 - `-i` ignores case in regexes and equality alike.
 - `-v` with `-L` selects the same files for the output, `-c`, `-q`, the
   progress count and the exit status. `--parse-speed=nan` is rejected.
+- In a quoted string a backslash escapes only the quote and another
+  backslash, so regex escapes such as `"^\d+$"` work as written. A track
+  index too large for a number is a parse error instead of wrapping.
 - Exit status 0 when anything was selected, 1 when nothing was, 2 on
   error, including a failure to write the output (checked at the final
   flush, so `> /dev/full` is reported instead of silently losing it).

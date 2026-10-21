@@ -346,3 +346,30 @@ TEST_CASE("@when includes dates recognized in the file name, and bare patterns s
     CHECK_FALSE(matches("'WcHWQnoE95w'", src));
     CHECK(matches("Path/Id = WcHWQnoE95w", src));
 }
+
+TEST_CASE("regex escapes in quoted strings reach the regex engine") {
+    FakeSource digits;
+    digits.add(TrackKind::General, {text("Title", "123")});
+    FakeSource letters;
+    letters.add(TrackKind::General, {text("Title", "ddd")});
+    // '\d' used to lose its backslash and compile as 'd'.
+    CHECK(matches("Title ~ \"^\\d+$\"", digits));
+    CHECK_FALSE(matches("Title ~ \"^\\d+$\"", letters));
+    CHECK(matches("Title ~ '^\\d+$'", digits));
+    CHECK(matches("Title ~ \"^\\\\d+$\"", digits));  // doubled backslashes still work
+
+    FakeSource dotted;
+    dotted.add(TrackKind::General, {text("Title", "a.b")});
+    FakeSource other;
+    other.add(TrackKind::General, {text("Title", "axb")});
+    CHECK(matches("Title ~ \"^a\\.b$\"", dotted));
+    CHECK_FALSE(matches("Title ~ \"^a\\.b$\"", other));
+    // A quoted string that is a bare pattern gets the same treatment.
+    CHECK(matches("\"^\\d+$\"", digits));
+    CHECK_FALSE(matches("\"^\\d+$\"", letters));
+
+    FakeSource quote;
+    quote.add(TrackKind::General, {text("Title", "a\"b"), text("Other", "\\")});
+    CHECK(matches("Title = \"a\\\"b\"", quote));
+    CHECK(matches("Other = \"\\\\\"", quote));
+}

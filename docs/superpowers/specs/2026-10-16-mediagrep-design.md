@@ -166,7 +166,9 @@ field      := [ TRACK [ "[" INDEX "]" ] "/" ] NAME
 TRACK      := General | Video | Audio | Text | Image | Menu | Other
 OP         := "=" | "!=" | "~" | "!~" | "<" | "<=" | ">" | ">="
 value      := STRING | WORD
-STRING     := "..." | '...'      (backslash escapes the quote)
+STRING     := "..." | '...'      (inside, a backslash escapes only the delimiting
+                                  quote and another backslash; any other backslash
+                                  is kept, so "\d" reaches the regex as \d)
 WORD       := run of characters not whitespace, quotes, or parentheses
 ```
 

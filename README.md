@@ -164,8 +164,12 @@ OP     := = | != | ~ | !~ | < | <= | > | >=
   `>= 2024-03`, `< "2024-03-01 12:00"`.
 - **Text.** `=` and `!=` are exact matches, `~` and `!~` unanchored
   regexes, `<` and `>` lexical. Case-sensitive unless `-i`.
-- **Values** with spaces are quoted with `"` or `'`; a backslash escapes
-  the quote. Quote the whole expression for your shell.
+- **Values** with spaces are quoted with `"` or `'`; inside a
+  quoted string a backslash escapes only the quote character that
+  delimits it and another backslash (`"a\"b"` is `a"b`, `"\\"` is
+  `\`). Every other backslash is kept, so regex escapes work as written:
+  `"^\d+$"` is the regex `^\d+$`. Quote the whole expression for your
+  shell.
 
 ```sh
 mediagrep -r -e 'Duration > 1h30m and Video/Height >= 1080' .
