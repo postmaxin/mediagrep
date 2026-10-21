@@ -51,6 +51,36 @@ TEST_CASE("other measures take plain numbers only") {
     CHECK_FALSE(parseNumber("", ""));
 }
 
+TEST_CASE("decimal operands are exact, not off by a rounding error") {
+    // 1.001 * 1000.0 is 1000.9999999999999 in binary floating point.
+    CHECK(parseNumber("1.001s", " ms") == 1001.0);
+    CHECK(parseNumber("1.001", " ms") == 1001.0);
+    CHECK(parseNumber("0.001s", " ms") == 1.0);
+    CHECK(parseNumber("2.675s", " ms") == 2675.0);
+    CHECK(parseNumber("1.1m", " ms") == 66000.0);
+    CHECK(parseNumber("0.1h", " ms") == 360000.0);
+    CHECK(parseNumber("1h2.003s", " ms") == 3602003.0);
+    CHECK(parseNumber("1.001K", " byte") == 1001.0);
+    CHECK(parseNumber("4.35M", " bps") == 4350000.0);
+    CHECK(parseNumber("0.001T", " byte") == 1e9);
+}
+
+TEST_CASE("decimal operands that are not whole in the base unit stay fractional") {
+    CHECK(parseNumber("0.5ms", " ms") == 0.5);
+    CHECK(parseNumber("1.0005s", " ms") == 1000.5);
+    CHECK(parseNumber("-1.001s", " ms") == -1001.0);
+    CHECK(parseNumber("1h-30m", " ms") == 1800000.0);
+}
+
+TEST_CASE("operands too long for exact arithmetic still parse approximately") {
+    const auto n = parseNumber("12345678901234567890123.5s", " ms");
+    REQUIRE(n.has_value());
+    CHECK(*n == doctest::Approx(1.2345678901234568e25));
+    const auto tiny = parseNumber("0.00000000000000000000001s", " ms");
+    REQUIRE(tiny.has_value());
+    CHECK(*tiny == doctest::Approx(1e-20));
+}
+
 TEST_CASE("date values normalize to YYYY-MM-DD HH:MM:SS") {
     CHECK(normalizeDateValue("UTC 2024-03-01 12:00:00") == "2024-03-01 12:00:00");
     CHECK(normalizeDateValue("2024-03-01 12:00:00") == "2024-03-01 12:00:00");

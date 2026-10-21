@@ -106,6 +106,25 @@ TEST_CASE("duration operands use time units against millisecond values") {
     CHECK_FALSE(matches("Duration > 2h", src));
 }
 
+TEST_CASE("decimal duration operands compare exactly at millisecond precision") {
+    FakeSource src;
+    src.add(TrackKind::General, {flt("Duration", "1001.000000", " ms")});
+    CHECK(matches("Duration = 1.001s", src));
+    CHECK_FALSE(matches("Duration > 1.001s", src));
+    CHECK_FALSE(matches("Duration < 1.001s", src));
+    CHECK(matches("Duration >= 1.001s", src));
+    CHECK(matches("Duration <= 1.001s", src));
+    CHECK(matches("Duration > 1.000s", src));
+    CHECK(matches("Duration < 1.002s", src));
+}
+
+TEST_CASE("decimal size operands compare exactly") {
+    FakeSource src;
+    src.add(TrackKind::General, {integer("FileSize", "1001", " byte")});
+    CHECK(matches("FileSize = 1.001K", src));
+    CHECK_FALSE(matches("FileSize > 1.001K", src));
+}
+
 TEST_CASE("size and bitrate operands use decimal multipliers") {
     auto src = typicalVideo();
     CHECK(matches("FileSize > 700M", src));
