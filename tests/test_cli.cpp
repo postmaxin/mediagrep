@@ -257,7 +257,7 @@ TEST_CASE("cli: a write error on stdout exits 2 with a message, even when buffer
 }
 
 TEST_CASE("cli: -R reports a broken link and exits 2, -r skips it, a loop is only a warning") {
-    mediagrep::test::TempTree t{"mediagrep-cli-links"};
+    mediagrep::test::TempTree t{"mediagrep-cli-links", "/tmp"};
     t.file("clip.mkv");
     mediagrep::test::makeSymlink("nowhere", t.path("broken"));
     const std::string root = "\"" + t.root + "\"";

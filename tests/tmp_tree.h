@@ -89,9 +89,12 @@ inline std::string tempBase() {
 // Creates <temp>/<name>-<n> fresh, and removes it on destruction.
 struct TempTree {
     std::string root;
-    explicit TempTree(const std::string& name) {
+    // `base` defaults to the temp directory from the environment. A test that
+    // puts the path in a shell command passes a fixed one instead, so that
+    // CodeQL does not flag the command as built from environment data.
+    explicit TempTree(const std::string& name, const std::string& base = tempBase()) {
         static int counter = 0;
-        root = fsys::join(tempBase(), name + "-" + std::to_string(counter++));
+        root = fsys::join(base, name + "-" + std::to_string(counter++));
         removeTree(root);
         makeDir(root);
     }
