@@ -176,7 +176,12 @@ TEST_CASE("FILETIME ticks convert to Unix time, before 1970 as well") {
     CHECK(*fsys::detail::fileTimeToUnix(kEpoch - 10000000ULL) == -1);
     CHECK(*fsys::detail::fileTimeToUnix(kEpoch - 1) == -1);  // rounds down, not toward zero
     CHECK(*fsys::detail::fileTimeToUnix(kEpoch - 86400ULL * 365 * 10000000ULL) == -86400 * 365);
-    CHECK(*fsys::detail::fileTimeToUnix(1) < 0);              // 1601 is far in the past
+    // 1601 is far in the past: negative where time_t can hold it, unknown where
+    // a 32-bit time_t cannot (it would otherwise wrap to a date in 2009).
+    if (sizeof(std::time_t) >= 8)
+        CHECK(*fsys::detail::fileTimeToUnix(1) < 0);
+    else
+        CHECK_FALSE(fsys::detail::fileTimeToUnix(1));
 }
 
 TEST_CASE("only name-surrogate reparse tags are links") {
