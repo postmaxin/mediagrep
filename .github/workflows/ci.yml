@@ -147,6 +147,8 @@ jobs:
             gid=$(stat -f %g .)
             getent group "$gid" || groupadd -g "$gid" ci
             getent passwd "$uid" || useradd -u "$uid" -g "$gid" -s /sbin/nologin ci
+            ls -l /usr/local/lib | grep -i mediainfo || true
+            pkg_info -L libmediainfo || true
             cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
             cmake --build build
             ctest --test-dir build --output-on-failure
