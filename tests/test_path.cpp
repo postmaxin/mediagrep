@@ -93,3 +93,48 @@ TEST_CASE("field types") {
         CHECK(f.measure.empty());
     }
 }
+
+TEST_CASE("the id is the bracketed word just before the extensions, not the first one") {
+    CHECK(fields("Practical Engineering [Engineering] [WcHWQnoE95w].mkv")["Id"] == "WcHWQnoE95w");
+    CHECK(fields("[Engineering] Talk [WcHWQnoE95w].mkv")["Id"] == "WcHWQnoE95w");
+    // A bracketed 11-character word that is not at the end is not an id.
+    CHECK(fields("Talk [Engineering] more.mkv").count("Id") == 0);
+    CHECK(fields("Talk [WcHWQnoE95w] more.mkv").count("Id") == 0);
+}
+
+TEST_CASE("ids followed by double extensions") {
+    CHECK(fields("Talk [WcHWQnoE95w].f137.mp4")["Id"] == "WcHWQnoE95w");
+    CHECK(fields("Talk [WcHWQnoE95w].en.vtt")["Id"] == "WcHWQnoE95w");
+    CHECK(fields("Talk [WcHWQnoE95w].info.json")["Id"] == "WcHWQnoE95w");
+    CHECK(fields("Talk [WcHWQnoE95w]")["Id"] == "WcHWQnoE95w");
+    CHECK(fields("Talk [WcHWQnoE95w].mkv.part").count("Id") == 1);
+}
+
+TEST_CASE("a name with no id has none") {
+    CHECK(fields("Talk about engines.mkv").count("Id") == 0);
+    CHECK(fields("Talk [WcHWQnoE95w] extra.mkv").count("Id") == 0);
+}
+
+TEST_CASE("dates and episodes are not recognized inside the id") {
+    auto year = fields("Talk [ab_2024_xyz].mkv");
+    CHECK(year["Id"] == "ab_2024_xyz");
+    CHECK(year.count("When") == 0);
+
+    auto full = fields("Talk [2024-03-01x].mkv");  // 11 characters, a year inside
+    CHECK(full["Id"] == "2024-03-01x");
+    CHECK(full.count("When") == 0);
+
+    auto episode = fields("Talk [-S01E02-abc].mkv", "Videos");
+    CHECK(episode["Id"] == "-S01E02-abc");
+    CHECK(episode.count("Season") == 0);
+    CHECK(episode.count("Episode") == 0);
+
+    auto nxn = fields("Talk [x1x02_abcde].mkv");
+    CHECK(nxn.count("Episode") == 0);
+
+    // The rest of the name is still read.
+    auto both = fields("Show S01E02 2019-05-04 [ab_2024_xyz].mkv");
+    CHECK(both["When"] == "2019-05-04");
+    CHECK(both["Season"] == "1");
+    CHECK(both["Episode"] == "2");
+}
