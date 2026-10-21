@@ -107,3 +107,61 @@ TEST_CASE("stat and errorMessage are safe to call from several threads") {
     for (std::thread& th : threads) th.join();
     CHECK(mismatches == 0);
 }
+
+TEST_CASE("collectEntries stops cleanly at the end and drops . and ..") {
+    std::vector<std::string> in{".", "a", "..", "b"};
+    std::size_t i = 0;
+    std::vector<std::string> names;
+    std::string error = "unset";
+    CHECK(fsys::detail::collectEntries(
+        [&](int& err) -> std::optional<std::string> {
+            err = 0;
+            if (i == in.size()) return std::nullopt;
+            return in[i++];
+        },
+        names, &error));
+    CHECK(names == std::vector<std::string>{"a", "b"});
+    CHECK(error == "unset");
+}
+
+TEST_CASE("collectEntries reports a read error part-way as a failure, not the end") {
+    std::size_t i = 0;
+    std::vector<std::string> names;
+    std::string error;
+    CHECK_FALSE(fsys::detail::collectEntries(
+        [&](int& err) -> std::optional<std::string> {
+            err = 0;
+            if (i++ == 2) { err = 5; return std::nullopt; }  // EIO on POSIX; any nonzero code works
+            return std::string(1, static_cast<char>('a' + i));
+        },
+        names, &error));
+    CHECK_FALSE(error.empty());
+    CHECK(names.size() == 2);  // what was read before the failure
+}
+
+TEST_CASE("collectEntries without an error pointer still reports failure") {
+    std::vector<std::string> names;
+    CHECK_FALSE(fsys::detail::collectEntries(
+        [](int& err) -> std::optional<std::string> { err = 5; return std::nullopt; }, names));
+}
+
+TEST_CASE("only 'no more files' ends a Windows listing, and an empty root is not an error") {
+    constexpr unsigned long kNoMoreFiles = 18, kFileNotFound = 2, kNetworkNameDeleted = 64;
+    CHECK(fsys::detail::findFailureEndsListing(kNoMoreFiles, false));
+    CHECK_FALSE(fsys::detail::findFailureEndsListing(kNetworkNameDeleted, false));
+    CHECK_FALSE(fsys::detail::findFailureEndsListing(kFileNotFound, false));
+    // FindFirstFileW on an empty drive root (no . or ..) fails with FILE_NOT_FOUND.
+    CHECK(fsys::detail::findFailureEndsListing(kFileNotFound, true));
+    CHECK_FALSE(fsys::detail::findFailureEndsListing(kNetworkNameDeleted, true));
+}
+
+TEST_CASE("FILETIME ticks convert to Unix time, before 1970 as well") {
+    constexpr std::uint64_t kEpoch = 116444736000000000ULL;  // 1970-01-01 in 100 ns ticks
+    CHECK_FALSE(fsys::detail::fileTimeToUnix(0));
+    CHECK(*fsys::detail::fileTimeToUnix(kEpoch) == 0);
+    CHECK(*fsys::detail::fileTimeToUnix(kEpoch + 86400ULL * 10000000ULL) == 86400);
+    CHECK(*fsys::detail::fileTimeToUnix(kEpoch - 10000000ULL) == -1);
+    CHECK(*fsys::detail::fileTimeToUnix(kEpoch - 1) == -1);  // rounds down, not toward zero
+    CHECK(*fsys::detail::fileTimeToUnix(kEpoch - 86400ULL * 365 * 10000000ULL) == -86400 * 365);
+    CHECK(*fsys::detail::fileTimeToUnix(1) < 0);              // 1601 is far in the past
+}

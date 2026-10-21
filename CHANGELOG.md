@@ -38,6 +38,9 @@ The first release.
 - `-R` skips a symlink cycle with a "recursive directory loop" warning, as
   grep does, instead of descending until the path is too long; a broken
   link is reported and exits 2.
+- A directory that fails part-way through listing (a dropped NAS or SMB
+  connection) is reported and exits 2, instead of being searched as if it
+  were shorter.
 - `-i` ignores case in regexes and equality alike.
 - `-v` with `-L` selects the same files for the output, `-c`, `-q`, the
   progress count and the exit status. `--parse-speed=nan` is rejected.
