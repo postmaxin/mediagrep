@@ -88,6 +88,21 @@ Each can be run locally on Linux; use a separate build directory.
   Entware and runs it. `tools/entware-ci.sh` does both steps and runs the
   same way by hand with Docker; its header shows the commands.
 
+- **Homebrew tap.** `postmaxin/homebrew-tap` holds `Formula/mediagrep.rb`, which
+  builds the release source tarball on macOS. It is not updated
+  automatically. After publishing a release, bump it by hand:
+
+  ```sh
+  brew bump-formula-pr --version=X.Y.Z postmaxin/tap/mediagrep
+  ```
+
+  or edit `url` and `sha256` in the formula (`curl -sL
+  https://github.com/postmaxin/mediagrep/archive/refs/tags/vX.Y.Z.tar.gz |
+  shasum -a 256`) and push. The tap's CI audits, builds and tests the
+  formula on macOS arm64 and Intel; wait for it to pass. If a release
+  changes how the library is located or what `--version` prints, update
+  the formula's `test` block too.
+
 A suppression or a disabled check needs a comment saying why. Do not add
 one to hide a real defect; file an issue first and link it.
 
