@@ -70,7 +70,8 @@ library when it starts, so any MediaInfo installation works:
 | Fedora | `dnf install libmediainfo` | same |
 | macOS | `brew install media-info` | same |
 | Windows | [MediaInfo DLL package](https://mediaarea.net/en/MediaInfo/Download/Windows); put `MediaInfo.dll` on `PATH` or next to `mediagrep.exe` | Visual Studio 2019+ with CMake |
-| FreeBSD, OpenBSD | `multimedia/libmediainfo` port | same |
+| FreeBSD | `pkg install libmediainfo` | same |
+| OpenBSD | `pkg_add libmediainfo` | same (see below) |
 
 Requirements: a C++17 compiler and CMake 3.16+. No other dependencies.
 
@@ -90,11 +91,21 @@ point the build at it with `-DMEDIAGREP_MEDIAINFO_LIBRARY=/path/to/libmediainfo.
 On macOS the build looks in Homebrew's `/opt/homebrew/lib` and
 `/usr/local/lib` automatically.
 
+OpenBSD numbers its shared libraries itself, so its package installs
+`libmediainfo.so.N.M` with an OpenBSD-specific `N` (23 on OpenBSD 8.0),
+not the upstream `libmediainfo.so.0`. The build finds the installed
+library in `/usr/local/lib` and loads it by `libmediainfo.so.N`. Rebuild
+after the package's major number changes, or link at build time with
+`-DMEDIAGREP_LINK_STATIC=ON`, which does not depend on the name. OpenBSD's
+`struct stat` has no birth time, so the `Created` field is never present
+there.
+
 Where the runtime build looks for the library, in order. It never loads
 one from the current directory, so running mediagrep in a folder you do
 not control cannot run code from it.
 
-- **Linux and the BSDs:** the soname (`libmediainfo.so.0`) through the
+- **Linux and the BSDs:** the soname (`libmediainfo.so.0`; on OpenBSD the
+  name found at build time, see above) through the
   system loader (`ld.so.cache`, `LD_LIBRARY_PATH`, rpath), then
   `/usr/local/lib`, `/usr/local/lib64`, `/usr/lib` and `/usr/lib64`.
 - **macOS:** next to the `mediagrep` binary, then `/opt/homebrew/lib`,
@@ -307,8 +318,10 @@ Tests use [doctest](https://github.com/doctest/doctest) (vendored). The
 parser and evaluator are tested against an in-memory metadata source;
 the MediaInfoLib backend and the CLI run against small fixture files in
 `tests/fixtures`, regenerable with `tests/fixtures/make.sh` and ffmpeg.
-CI builds and tests on Linux, macOS, and Windows, with both the
-runtime-loaded and build-time-linked library.
+CI builds and tests on Linux, macOS, Windows, FreeBSD and OpenBSD (the
+BSDs in virtual machines, against the system `libmediainfo` package),
+with both the runtime-loaded and build-time-linked library where the
+platform has one of each.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report problems and
 send changes, and [CHANGELOG.md](CHANGELOG.md) for what changed when.

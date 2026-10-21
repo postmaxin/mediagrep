@@ -10,6 +10,7 @@
 #define POPEN _popen
 #define PCLOSE _pclose
 #else
+#include <sys/stat.h>
 #include <sys/wait.h>
 #define POPEN popen
 #define PCLOSE pclose
@@ -245,10 +246,11 @@ TEST_CASE("cli: -q exits 0 on a match even when another path is an error, like g
 TEST_CASE("cli: a write error on stdout exits 2 with a message, even when buffered") {
     // /dev/full accepts the write into stdio's buffer and fails it at the
     // final flush, so the failure only shows up if that flush is checked.
-    if (std::FILE* full = std::fopen("/dev/full", "w"))
-        std::fclose(full);
-    else
-        return;  // not Linux
+    // Only a device that exists will do: on OpenBSD there is no /dev/full,
+    // and opening it for writing (or the shell's > redirection) would create
+    // an ordinary file that accepts every write.
+    struct stat full;
+    if (::stat("/dev/full", &full) != 0 || !S_ISCHR(full.st_mode)) return;
     // Only stdout goes to /dev/full; stderr still reaches the pipe.
     Run r = runShell("cd \"" MEDIAGREP_FIXTURES_DIR "\" && { \"" MEDIAGREP_BINARY
                      "\" -r -l -e \"Video/Height < 1000\" . > /dev/full; } 2>&1");
