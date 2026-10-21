@@ -76,4 +76,6 @@ The first release.
   it works; `-DMEDIAGREP_LINK_STATIC=ON` links it at build time instead.
 - Builds with any C++17 compiler on Linux, macOS, Windows and the BSDs,
   including GCC 8 toolchains without `std::filesystem`.
+- The Windows executable links the Visual C++ runtime statically, so it
+  starts on a PC without the redistributable.
 - A man page, installed by `cmake --install`.

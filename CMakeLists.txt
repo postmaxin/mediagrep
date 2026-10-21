@@ -13,6 +13,14 @@ if(NOT WIN32)
     add_compile_definitions(_FILE_OFFSET_BITS=64)
 endif()
 
+if(MSVC)
+    # Link the C and C++ runtimes statically (/MT, /MTd). The release zip does
+    # not ship the Visual C++ redistributable, and without it a default /MD
+    # mediagrep.exe will not start on a PC that lacks it. Needs policy CMP0091,
+    # which cmake_minimum_required(3.16) sets to NEW.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 option(MEDIAGREP_BUILD_TESTS "Build the test suite" ON)
 option(MEDIAGREP_LINK_STATIC
        "Link MediaInfoLib at build time instead of loading it at runtime" OFF)
@@ -98,12 +106,17 @@ else()
     endif()
     if(MEDIAGREP_MEDIAINFO_LIBRARY)
         message(STATUS "MediaInfoLib will be loaded from ${MEDIAGREP_MEDIAINFO_LIBRARY}")
+        # The value becomes a C++ string literal, so backslashes (a Windows
+        # path) and quotes in it must be escaped, or C:\temp\MediaInfo.dll
+        # turns into a tab and a bad escape.
+        string(REPLACE "\\" "\\\\" _mediagrep_mi_literal "${MEDIAGREP_MEDIAINFO_LIBRARY}")
+        string(REPLACE "\"" "\\\"" _mediagrep_mi_literal "${_mediagrep_mi_literal}")
         if(WIN32)
             target_compile_definitions(mediagrep_core PRIVATE
-                "MEDIAINFODLL_NAME=L\"${MEDIAGREP_MEDIAINFO_LIBRARY}\"")
+                "MEDIAINFODLL_NAME=L\"${_mediagrep_mi_literal}\"")
         else()
             target_compile_definitions(mediagrep_core PRIVATE
-                "MEDIAINFODLL_NAME=\"${MEDIAGREP_MEDIAINFO_LIBRARY}\"")
+                "MEDIAINFODLL_NAME=\"${_mediagrep_mi_literal}\"")
         endif()
     endif()
     target_link_libraries(mediagrep_core PUBLIC ${CMAKE_DL_LIBS})

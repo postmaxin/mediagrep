@@ -8,11 +8,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Read-only by default: the Windows job runs a downloaded DLL during its tests.
+# Only the draft job, which runs nothing from the build, may write.
 permissions:
-  contents: write
-
-env:
-  MEDIAINFO_VERSION: "26.10"
+  contents: read
 
 jobs:
   version:
@@ -43,21 +42,30 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Get the MediaInfo DLL and its license
-        shell: pwsh
-        run: |
-          $v = $env:MEDIAINFO_VERSION
-          $url = "https://mediaarea.net/download/binary/libmediainfo0/$v/MediaInfo_DLL_${v}_Windows_x64_WithoutInstaller.zip"
-          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\mediainfo.zip"
-          Expand-Archive "$env:RUNNER_TEMP\mediainfo.zip" -DestinationPath "$env:RUNNER_TEMP\mediainfo"
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MediaArea/MediaInfoLib/v$v/License.html" -OutFile "$env:RUNNER_TEMP\mediainfo\License.html"
-          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP\mediainfo"
+      - name: Get the MediaInfo DLL and its license (checked against a pinned hash)
+        uses: ./.github/actions/mediainfo-dll
       - name: Build
         run: |
           cmake -S . -B build -A x64
           cmake --build build --config Release
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Check the exe needs no Visual C++ runtime
+        shell: pwsh
+        run: |
+          $dumpbin = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -find "VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          $bad = $false
+          foreach ($f in "build\Release\mediagrep.exe", "$env:RUNNER_TEMP\mediainfo\MediaInfo.dll") {
+            Write-Host "== $f"
+            $out = & $dumpbin /dependents $f | Out-String
+            Write-Host $out
+            # Only system DLLs may be needed: the zip does not ship the redistributable.
+            if ($out -match '(?im)^\s+(vcruntime|msvcp|concrt|vcomp|ucrtbase|api-ms-win-crt)') {
+              Write-Host "::error::$f depends on the Visual C++ runtime"
+              $bad = $true
+            }
+          }
+          if ($bad) { exit 1 }
       - name: Package
         shell: pwsh
         run: |
@@ -110,6 +118,8 @@ jobs:
     needs: [version, windows, linux]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
