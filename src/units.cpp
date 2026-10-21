@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 namespace mediagrep {
 
@@ -11,21 +13,110 @@ namespace {
 
 bool isDigit(char c) { return c >= '0' && c <= '9'; }
 
+// A decimal number kept as digits, so "1.001" is 1001 / 10^3 and not the
+// nearest binary fraction. `exact` is false when the digits do not fit.
+struct Decimal {
+    bool negative = false;
+    std::uint64_t mantissa = 0;
+    int scale = 0;  // digits after the point
+    bool exact = true;
+    double approx = 0;  // strtod of the same text, for when exact is false
+};
+
+constexpr int kMaxDigits = 19;  // 10^19 - 1 fits in 64 bits
+
 // Reads a decimal number ("-12", "1.5", ".5") at the start of `s`.
 // Returns the number of characters consumed, 0 if there is no number.
-std::size_t readNumber(std::string_view s, double& out) {
+std::size_t readNumber(std::string_view s, Decimal& out) {
+    out = Decimal();
     std::size_t i = 0;
-    if (i < s.size() && (s[i] == '-' || s[i] == '+')) ++i;
+    if (i < s.size() && (s[i] == '-' || s[i] == '+')) {
+        out.negative = s[i] == '-';
+        ++i;
+    }
     std::size_t digits = 0;
-    while (i < s.size() && isDigit(s[i])) { ++i; ++digits; }
+    bool afterPoint = false;
+    auto take = [&](char c) {
+        ++digits;
+        if (digits > static_cast<std::size_t>(kMaxDigits)) {
+            out.exact = false;
+            return;
+        }
+        out.mantissa = out.mantissa * 10 + static_cast<std::uint64_t>(c - '0');
+        if (afterPoint) ++out.scale;
+    };
+    while (i < s.size() && isDigit(s[i])) take(s[i++]);
     if (i < s.size() && s[i] == '.') {
         ++i;
-        while (i < s.size() && isDigit(s[i])) { ++i; ++digits; }
+        afterPoint = true;
+        while (i < s.size() && isDigit(s[i])) take(s[i++]);
     }
     if (digits == 0) return 0;
-    out = std::strtod(std::string(s.substr(0, i)).c_str(), nullptr);
+    out.approx = std::strtod(std::string(s.substr(0, i)).c_str(), nullptr);
     return i;
 }
+
+std::uint64_t pow10u(int n) {
+    std::uint64_t r = 1;
+    for (int i = 0; i < n; ++i) r *= 10;
+    return r;
+}
+
+// Adds up terms of the form number * multiplier, where the multiplier is a
+// whole number of base units (ms, bytes), so "1.001s" is 1001 ms rather than
+// 1000.9999999999999. The sum is kept as an integer over a power of ten and
+// divided once, which rounds the way strtod rounds the same decimal text, so
+// it compares equal to a field value of that number. If any term has too many
+// digits, or the sum would overflow, the result is the plain floating-point
+// one.
+class Sum {
+public:
+    void add(const Decimal& d, std::uint64_t multiplier) {
+        approx_ += d.approx * static_cast<double>(multiplier);
+        terms_.push_back({d, multiplier});
+    }
+
+    double value() const {
+        constexpr std::uint64_t kLimit = std::uint64_t(1) << 62;
+        int scale = 0;
+        for (const Term& t : terms_) {
+            if (!t.number.exact) return approx_;
+            scale = std::max(scale, t.number.scale);
+        }
+        std::int64_t total = 0;
+        for (const Term& t : terms_) {
+            const std::uint64_t scaled = pow10u(scale - t.number.scale);
+            std::uint64_t magnitude = t.number.mantissa;
+            if (!mulWithin(magnitude, scaled, kLimit) || !mulWithin(magnitude, t.multiplier, kLimit))
+                return approx_;
+            const std::int64_t term = t.number.negative ? -static_cast<std::int64_t>(magnitude)
+                                                         : static_cast<std::int64_t>(magnitude);
+            total += term;  // |total| and |term| are at most 2^62, so no overflow
+            if (total > static_cast<std::int64_t>(kLimit) ||
+                total < -static_cast<std::int64_t>(kLimit))
+                return approx_;
+        }
+        // volatile: on x87 (32-bit x86) the quotient would otherwise stay in
+        // an 80-bit register, and not equal the double strtod gives.
+        volatile double result = static_cast<double>(total) / static_cast<double>(pow10u(scale));
+        return result;
+    }
+
+private:
+    struct Term {
+        Decimal number;
+        std::uint64_t multiplier;
+    };
+
+    static bool mulWithin(std::uint64_t& a, std::uint64_t b, std::uint64_t limit) {
+        if (a != 0 && b > limit / a) return false;
+        a *= b;
+        return true;
+    }
+
+    std::vector<Term> terms_;
+    double approx_ = 0;
+};
 
 std::string lowerAlpha(std::string_view s, std::size_t& pos) {
     std::string out;
@@ -36,10 +127,10 @@ std::string lowerAlpha(std::string_view s, std::size_t& pos) {
 
 std::optional<double> parseDuration(std::string_view text) {
     std::size_t pos = 0;
-    double total = 0;
+    Sum total;
     bool sawComponent = false;
     while (pos < text.size()) {
-        double n = 0;
+        Decimal n;
         const std::size_t len = readNumber(text.substr(pos), n);
         if (len == 0) return std::nullopt;
         pos += len;
@@ -47,43 +138,49 @@ std::optional<double> parseDuration(std::string_view text) {
         if (unit.empty()) {
             // A bare number is only allowed on its own, and means seconds.
             if (sawComponent || pos != text.size()) return std::nullopt;
-            return n * 1000.0;
+            total.add(n, 1000);
+            return total.value();
         }
-        double mult = 0;
-        if (unit == "h") mult = 3600000.0;
-        else if (unit == "m") mult = 60000.0;
-        else if (unit == "s") mult = 1000.0;
-        else if (unit == "ms") mult = 1.0;
+        std::uint64_t mult = 0;
+        if (unit == "h") mult = 3600000;
+        else if (unit == "m") mult = 60000;
+        else if (unit == "s") mult = 1000;
+        else if (unit == "ms") mult = 1;
         else return std::nullopt;
-        total += n * mult;
+        total.add(n, mult);
         sawComponent = true;
     }
-    return sawComponent ? std::optional<double>(total) : std::nullopt;
+    return sawComponent ? std::optional<double>(total.value()) : std::nullopt;
 }
 
 std::optional<double> parseScaled(std::string_view text) {
-    double n = 0;
+    Decimal n;
     std::size_t pos = readNumber(text, n);
     if (pos == 0) return std::nullopt;
     std::string suffix = lowerAlpha(text, pos);
     if (pos != text.size()) return std::nullopt;
-    if (suffix.empty()) return n;
-    if (suffix.size() == 2 && suffix[1] == 'b') suffix.pop_back();  // "GB", "Kb"
-    if (suffix.size() != 1) return std::nullopt;
-    switch (suffix[0]) {
-        case 'k': return n * 1e3;
-        case 'm': return n * 1e6;
-        case 'g': return n * 1e9;
-        case 't': return n * 1e12;
+    std::uint64_t mult = 1;
+    if (!suffix.empty()) {
+        if (suffix.size() == 2 && suffix[1] == 'b') suffix.pop_back();  // "GB", "Kb"
+        if (suffix.size() != 1) return std::nullopt;
+        switch (suffix[0]) {
+            case 'k': mult = 1000ull; break;
+            case 'm': mult = 1000000ull; break;
+            case 'g': mult = 1000000000ull; break;
+            case 't': mult = 1000000000000ull; break;
+            default: return std::nullopt;
+        }
     }
-    return std::nullopt;
+    Sum total;
+    total.add(n, mult);
+    return total.value();
 }
 
 std::optional<double> parsePlain(std::string_view text) {
-    double n = 0;
+    Decimal n;
     const std::size_t len = readNumber(text, n);
     if (len == 0 || len != text.size()) return std::nullopt;
-    return n;
+    return n.approx;
 }
 
 // Matches a run of `pattern` where 'D' means digit and any other

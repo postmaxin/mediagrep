@@ -11,6 +11,8 @@ follow [Semantic Versioning](https://semver.org/).
 - If a worker or output thread cannot be started (for instance the process
   limit is reached), mediagrep now reports the error and exits instead of
   hanging.
+- Decimal duration and size operands are exact: `Duration = 1.001s` now
+  equals a duration of 1001 ms instead of falling a rounding error short.
 
 ## [0.1.0] - 2026-10-21
 
