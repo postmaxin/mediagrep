@@ -111,7 +111,11 @@ source compiles against either header:
 
 - `MediaInfoDLL.h` (default): loads `libmediainfo.so.0`,
   `libmediainfo.0.dylib`, or `MediaInfo.dll` at runtime. Users need only
-  a MediaInfo installation.
+  a MediaInfo installation. The vendored loader also tries
+  `./libmediainfo.so.0`, which would run a library planted in the current
+  directory, so `src/module_search.h` wraps its `dlopen`/`LoadLibrary`
+  and refuses every location relative to the current directory (the
+  header itself stays unpatched). Order: see the README's Install section.
 - `MediaInfoDLL_Static.h` (CMake option `MEDIAGREP_LINK_STATIC`): links
   MediaInfoLib at build time. For packagers and upstream.
 

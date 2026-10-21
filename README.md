@@ -67,6 +67,25 @@ point the build at it with `-DMEDIAGREP_MEDIAINFO_LIBRARY=/path/to/libmediainfo.
 On macOS the build looks in Homebrew's `/opt/homebrew/lib` and
 `/usr/local/lib` automatically.
 
+Where the runtime build looks for the library, in order. It never loads
+one from the current directory, so running mediagrep in a folder you do
+not control cannot run code from it.
+
+- **Linux and the BSDs:** the soname (`libmediainfo.so.0`) through the
+  system loader (`ld.so.cache`, `LD_LIBRARY_PATH`, rpath), then
+  `/usr/local/lib`, `/usr/local/lib64`, `/usr/lib` and `/usr/lib64`.
+- **macOS:** next to the `mediagrep` binary, then `/opt/homebrew/lib`,
+  `/usr/local/lib` and `/usr/lib`. Apple's `dlopen` would search the
+  current directory for a bare name, so mediagrep opens these absolute
+  paths itself and never passes the bare name through.
+- **Windows:** a bare name or a fully qualified path only (`.\x`, `dir\x`
+  and `C:x` are refused); the directory of `mediagrep.exe` and the system
+  directories, then the Windows directory and `PATH`. The current
+  directory is never searched.
+- A library path given with `-DMEDIAGREP_MEDIAINFO_LIBRARY` is tried
+  as given, so use an absolute path or a bare soname; a relative path
+  such as `./libmediainfo.so.0` is refused.
+
 ## Usage
 
 ```

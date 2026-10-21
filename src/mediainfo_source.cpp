@@ -24,7 +24,23 @@
 #ifdef MEDIAGREP_LINK_STATIC
 #include "MediaInfoDLL_Static.h"
 #else
+// The vendored loader also tries "./libmediainfo.so.0", which would run a
+// library planted in the current directory (issue #29). Include what it
+// needs, then route its dlopen/LoadLibrary through module_search.h, which
+// refuses anything relative to the current directory.
+#include "module_search.h"
+#ifdef _WIN32
+#undef LoadLibrary
+#define LoadLibrary(name) ::mediagrep::loadModule(name)
+#else
+#define dlopen(name, flags) ::mediagrep::loadModule(name, flags)
+#endif
 #include "MediaInfoDLL.h"
+#ifdef _WIN32
+#undef LoadLibrary
+#else
+#undef dlopen
+#endif
 #endif
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop

@@ -72,6 +72,8 @@ The first release.
   line stays inside the window after it is resized smaller, and counts
   every East Asian wide character (including emoji such as U+2705) as
   two columns.
+- The runtime loader never loads MediaInfoLib from the current directory
+  (the README lists the search order).
 - MediaInfoLib is loaded at runtime by default, so any installation of
   it works; `-DMEDIAGREP_LINK_STATIC=ON` links it at build time instead.
 - Builds with any C++17 compiler on Linux, macOS, Windows and the BSDs,
