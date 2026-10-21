@@ -80,4 +80,6 @@ The first release.
   including GCC 8 toolchains without `std::filesystem`.
 - The Windows executable links the Visual C++ runtime statically, so it
   starts on a PC without the redistributable.
-- A man page, installed by `cmake --install`.
+- A man page, installed by `cmake --install`, along with the license
+  notices, including MediaInfoLib's, which the release archives carry too.
+- `SECURITY.md` says how to report a vulnerability privately.

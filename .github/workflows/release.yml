@@ -104,6 +104,8 @@ jobs:
           name="mediagrep-${{ needs.version.outputs.version }}-linux-x86_64"
           mkdir -p "dist/$name"
           cp build/mediagrep build/mediagrep.1 README.md CHANGELOG.md LICENSE "dist/$name/"
+          # The MediaInfoDLL headers are compiled in; their BSD notice must ship too.
+          cp third_party/MediaInfoDLL/License.html "dist/$name/MediaInfoLib-License.html"
           strip "dist/$name/mediagrep"
           "dist/$name/mediagrep" --version
           ldd "dist/$name/mediagrep"

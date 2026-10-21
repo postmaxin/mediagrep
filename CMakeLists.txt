@@ -145,6 +145,12 @@ if(NOT WIN32)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mediagrep.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 endif()
 
+# License notices. The MediaInfoDLL headers are compiled into the binary, so
+# MediaInfoLib's BSD notice must travel with it (see third_party/README.md).
+install(FILES LICENSE README.md CHANGELOG.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(FILES third_party/MediaInfoDLL/License.html DESTINATION ${CMAKE_INSTALL_DOCDIR}
+        RENAME MediaInfoLib-License.html)
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------

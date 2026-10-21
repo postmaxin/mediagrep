@@ -291,4 +291,10 @@ The design is written up in
 BSD-2-Clause, matching MediaInfo, so that this can be contributed
 upstream if MediaArea wants it. See [LICENSE](LICENSE). The vendored
 `MediaInfoDLL.h` and `MediaInfoDLL_Static.h` are copyright MediaArea.net
-SARL under the same license; `doctest.h` is MIT.
+SARL under the same license; `doctest.h` is MIT. Their license files and
+origins are in [third_party/](third_party/README.md).
+
+This product uses the [MediaInfo library](https://mediaarea.net/MediaInfo),
+Copyright (c) 2002-2025 MediaArea.net SARL.
+
+To report a security problem, see [SECURITY.md](SECURITY.md).
