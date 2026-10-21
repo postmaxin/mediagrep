@@ -196,3 +196,8 @@ endif()
 if(MEDIAGREP_BUILD_FUZZERS)
     add_subdirectory(fuzz)
 endif()
+
+# .deb and .rpm packages: `cpack --config build/CPackConfig.cmake`.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    include(cmake/Packaging.cmake)
+endif()

@@ -1,0 +1,35 @@
+# Run by CPack (CPACK_PRE_BUILD_SCRIPTS) after the files are installed into
+# the staging tree, once per generator (see Packaging.cmake). Does what Debian
+# policy wants and install() rules should not do for a plain `cmake --install`.
+# rpmbuild compresses man pages itself, so the .rpm needs none of this.
+if(NOT CPACK_GENERATOR STREQUAL "DEB")
+    return()
+endif()
+
+set(_root "${CPACK_TEMPORARY_INSTALL_DIRECTORY}@CPACK_PACKAGING_INSTALL_PREFIX@")
+set(_doc "${_root}/@CMAKE_INSTALL_DOCDIR@")
+set(_man "${_root}/@CMAKE_INSTALL_MANDIR@/man1/mediagrep.1")
+
+# The license, under the name policy requires.
+configure_file("@CMAKE_CURRENT_SOURCE_DIR@/LICENSE" "${_doc}/copyright" COPYONLY)
+file(CHMOD "${_doc}/copyright"
+     PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+
+# The package revision's changelog. The upstream history is CHANGELOG.md.
+string(TIMESTAMP _date "%a, %d %b %Y %H:%M:%S +0000" UTC)
+file(WRITE "${_doc}/changelog.Debian"
+"mediagrep (@PROJECT_VERSION@-1) unstable; urgency=medium
+
+  * Package built from the upstream release. The changes are in
+    CHANGELOG.md in this directory.
+
+ -- @CPACK_PACKAGE_CONTACT@  ${_date}
+")
+
+# gzip -9n: maximum compression and no timestamp, so the package is reproducible.
+foreach(_f "${_man}" "${_doc}/changelog.Debian")
+    execute_process(COMMAND gzip -9nf "${_f}" RESULT_VARIABLE _rc)
+    if(NOT _rc EQUAL 0)
+        message(FATAL_ERROR "gzip ${_f} failed (${_rc})")
+    endif()
+endforeach()

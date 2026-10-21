@@ -32,11 +32,21 @@ order of magnitude faster on a large collection.
 
 ## Install
 
-Prebuilt archives for Windows x64 and Linux x86_64 are attached to each
+Prebuilt packages for Windows x64 and Linux x86_64 are attached to each
 [release](https://github.com/postmaxin/mediagrep/releases). The Windows
-one includes `MediaInfo.dll`; on Linux, install the library as below.
-The Linux binary needs glibc 2.34 or later (Debian 12, Ubuntu 22.04,
-RHEL 9 and newer); on older systems, build from source.
+zip includes `MediaInfo.dll`.
+
+On Debian, Ubuntu and Fedora, install the `.deb` or `.rpm` from the
+release. It pulls in MediaInfoLib as a dependency:
+
+```sh
+sudo apt install ./mediagrep_0.1.0-1_amd64.deb     # Debian, Ubuntu
+sudo dnf install ./mediagrep-0.1.0-1.x86_64.rpm    # Fedora
+```
+
+The `.tar.gz` is the same binary for other Linux distributions; install
+the library as below. The Linux binary needs glibc 2.34 or later (Debian
+12, Ubuntu 22.04, RHEL 9 and newer); on older systems, build from source.
 
 mediagrep needs MediaInfoLib at runtime. By default it loads the shared
 library when it starts, so any MediaInfo installation works:

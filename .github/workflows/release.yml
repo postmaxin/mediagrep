@@ -114,10 +114,60 @@ jobs:
         with:
           name: linux
           path: dist/*.tar.gz
+      - name: Build the .deb and .rpm
+        run: |
+          sudo apt-get install -y lintian rpm
+          cpack --config build/CPackConfig.cmake -B pkg
+          # Errors fail the job; warnings are for a person to read.
+          lintian --fail-on error --info pkg/*.deb || exit 1
+          dpkg-deb -I pkg/*.deb
+          dpkg-deb -c pkg/*.deb
+          rpm -qp --requires pkg/*.rpm
+          rpm -qlp pkg/*.rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            pkg/*.deb
+            pkg/*.rpm
+
+  # Install each package into a clean distribution image, with only that
+  # image's own repositories, to prove the dependency on MediaInfoLib is
+  # declared: it is loaded with dlopen, so nothing detects it automatically.
+  package-check:
+    name: Install ${{ matrix.name }}
+    needs: linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: .deb in debian:stable
+            image: debian:stable
+            install: apt-get update -qq && apt-get install -y ./mediagrep_*.deb
+          - name: .rpm in fedora:latest
+            image: fedora:latest
+            install: dnf install -y ./mediagrep-*.rpm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-packages
+          path: pkg
+      - name: Install and run
+        run: |
+          docker run --rm -v "$PWD/pkg:/pkg:ro" -v "$PWD/tests/fixtures:/fixtures:ro"             ${{ matrix.image }} sh -euc '
+              cd /pkg
+              ${{ matrix.install }}
+              out=$(mediagrep --version)
+              echo "$out"
+              case "$out" in *"not found"*) echo "MediaInfoLib was not installed"; exit 1;; esac
+              mediagrep -ri engineering /fixtures
+            '
 
   draft:
     name: Draft release
-    needs: [version, windows, linux]
+    needs: [version, windows, linux, package-check]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
