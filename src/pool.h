@@ -23,14 +23,30 @@ class OrderedPool {
 public:
     using Work = std::function<Result(const Job&)>;   // runs on a worker thread; must not throw
     using Emit = std::function<void(Result&&)>;       // runs on one output thread, in order
+    // Tests only: called with the index of each thread (workers first, then
+    // the output thread) just before it starts. Throwing makes that start fail.
+    using StartHook = std::function<void(std::size_t)>;
 
-    OrderedPool(std::size_t workers, Work work, Emit emit)
+    OrderedPool(std::size_t workers, Work work, Emit emit, StartHook beforeStart = nullptr)
         : work_(std::move(work)), emit_(std::move(emit)) {
         if (workers == 0) workers = 1;
         capacity_ = workers * 4;
-        for (std::size_t i = 0; i < workers; ++i)
-            workers_.push_back(std::make_unique<WorkerThread>([this] { workerLoop(); }));
-        output_ = std::thread([this] { outputLoop(); });
+        // Reserve first so push_back cannot throw once a thread is running.
+        workers_.reserve(workers);
+        try {
+            for (std::size_t i = 0; i < workers; ++i) {
+                if (beforeStart) beforeStart(i);
+                workers_.push_back(std::make_unique<WorkerThread>([this] { workerLoop(); }));
+            }
+            if (beforeStart) beforeStart(workers);
+            output_ = std::thread([this] { outputLoop(); });
+        } catch (...) {
+            // A constructor that throws gets no destructor call. The workers
+            // already started are waiting for jobs, so tell them to stop or
+            // joining them (in ~WorkerThread) would never return.
+            stopWorkers();
+            throw;
+        }
     }
 
     ~OrderedPool() { finish(); }
@@ -49,13 +65,7 @@ public:
 
     // Waits until every submitted job has been emitted. Idempotent.
     void finish() {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (finished_) return;
-            finished_ = true;
-        }
-        jobReady_.notify_all();
-        for (auto& t : workers_) t->join();
+        if (!stopWorkers()) return;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             workersDone_ = true;
@@ -65,6 +75,19 @@ public:
     }
 
 private:
+    // Marks the pool finished, wakes the workers and joins them. Returns false
+    // if it had already been done.
+    bool stopWorkers() {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (finished_) return false;
+            finished_ = true;
+        }
+        jobReady_.notify_all();
+        for (auto& t : workers_) t->join();
+        return true;
+    }
+
     void workerLoop() {
         for (;;) {
             std::pair<std::size_t, Job> item;
