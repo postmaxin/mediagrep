@@ -330,8 +330,16 @@ Asian wide characters count as two columns: the table is every
 East_Asian_Width W and F range, generated from Unicode's
 `EastAsianWidth.txt` (17.0.0) by `tools/gen_wide_table.py` into
 `src/wide_table.inc`, because hand-picked ranges missed common emoji such
-as U+2705. Control characters in file names are shown as `?`. On Windows the console is switched to UTF-8
-output for the life of the process so file names print correctly.
+as U+2705. Control characters in file names are shown as `?`.
+
+Output goes through `term::writeStdout` and `term::writeStderr`. When the
+handle is a Windows console (a handle `GetConsoleMode` accepts, so NUL is
+not one) the UTF-8 text is converted to UTF-16 and written with
+`WriteConsoleW`, in chunks that never split a surrogate pair. Redirected
+output and all output on POSIX is the bytes as given. The console's code
+page is not changed, because it belongs to the console and not to the
+process: an earlier version switched it to UTF-8 and restored it at exit,
+which garbled the output of a second run sharing the console (#13).
 | `--version`, `--help` | The usual. |
 
 Flags borrowed from grep keep grep's meaning.
@@ -418,7 +426,7 @@ src/
   queue.h         BoundedQueue between the walker thread and the pool
   thread.{h,cpp}  worker threads with 256 MB stacks; per-thread regex length limit
   progress.{h,cpp}  progress line and log formatting, the console lock
-  term.{h,cpp}    terminal detection and width, Windows UTF-8 console
+  term.{h,cpp}    terminal detection and width, console-aware output
   cli.{h,cpp}     option parsing and output formatting
 tests/
   doctest.h       vendored

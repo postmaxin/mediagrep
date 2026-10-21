@@ -135,6 +135,12 @@ keep the search to folders that are already local, to avoid that.
 A bare drive such as `C:` means the current directory on that drive, as
 in `cmd.exe`.
 
+On Windows, output to a console is written as UTF-16 with `WriteConsoleW`,
+so non-ASCII file names show correctly whatever the console's code page,
+and mediagrep never changes that code page (it belongs to every program
+sharing the console). Output redirected to a file or pipe is UTF-8, as on
+other systems. Whether the glyphs show still depends on the console font.
+
 On Unix, MediaInfoLib opens files through the C library's locale
 conversion, so a UTF-8 locale must exist on the system for file names
 with non-ASCII characters. mediagrep selects one itself (the
