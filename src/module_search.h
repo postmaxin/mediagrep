@@ -47,15 +47,17 @@ constexpr bool kAppleLoader = true;
 constexpr bool kAppleLoader = false;
 #endif
 
-// True if dlopen(name) cannot reach into the current directory. Elsewhere:
-// a name without a slash, an absolute path, or under @executable_path/. On
-// Apple platforms a leaf name is not trusted as is (see moduleCandidates()).
+// True if dlopen(name) cannot reach into the current directory: an absolute
+// path; elsewhere a name without a slash; on Apple platforms a name under
+// @executable_path/, which only dyld understands (elsewhere it would be an
+// ordinary relative directory). On Apple platforms a leaf name is not trusted
+// as is (see moduleCandidates()).
 inline bool isTrustedModuleName(const char* name, bool apple = kAppleLoader) {
     if (!name || !*name) return false;
     if (!std::strchr(name, '/')) return !apple;
     if (name[0] == '/') return true;
     constexpr char kExecutableDir[] = "@executable_path/";
-    return std::strncmp(name, kExecutableDir, sizeof kExecutableDir - 1) == 0;
+    return apple && std::strncmp(name, kExecutableDir, sizeof kExecutableDir - 1) == 0;
 }
 
 // The names to hand to dlopen, in order; empty when the name is refused. On

@@ -31,7 +31,9 @@ TEST_CASE("sonames, absolute paths and the executable directory are accepted") {
     CHECK(isTrustedModuleName("libmediainfo.so.0", false));
     CHECK(isTrustedModuleName("/usr/lib/libmediainfo.so.0", false));
     CHECK(isTrustedModuleName("/usr/local/lib64/libmediainfo.so.0", false));
-    CHECK(isTrustedModuleName("@executable_path/libmediainfo.0.dylib", false));
+    // Only dyld knows @executable_path; elsewhere it is a relative directory.
+    CHECK_FALSE(isTrustedModuleName("@executable_path/libmediainfo.so.0", false));
+    CHECK(isTrustedModuleName("@executable_path/libmediainfo.0.dylib", true));
     CHECK(moduleCandidates("libmediainfo.so.0", false) == Names{"libmediainfo.so.0"});
     CHECK(moduleCandidates("/usr/lib/libmediainfo.so.0", false) ==
           Names{"/usr/lib/libmediainfo.so.0"});
