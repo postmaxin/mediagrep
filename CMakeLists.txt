@@ -94,7 +94,8 @@ else()
     # by soname (libmediainfo.so.0, libmediainfo.0.dylib, MediaInfo.dll).
     # MEDIAGREP_MEDIAINFO_LIBRARY overrides that with a path, for installs
     # outside the loader's default search path. On macOS, Homebrew's
-    # /opt/homebrew/lib is such a place, so look there automatically.
+    # /opt/homebrew/lib is such a place, so look there automatically. OpenBSD
+    # names the library differently; see below.
     set(MEDIAGREP_MEDIAINFO_LIBRARY "" CACHE STRING
         "Path or soname of the MediaInfoLib shared library to load at runtime")
     if(APPLE AND NOT MEDIAGREP_MEDIAINFO_LIBRARY)
@@ -103,6 +104,23 @@ else()
         if(_mediagrep_mi_lib)
             set(MEDIAGREP_MEDIAINFO_LIBRARY "${_mediagrep_mi_lib}")
         endif()
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD" AND NOT MEDIAGREP_MEDIAINFO_LIBRARY)
+        # OpenBSD numbers its shared libraries itself, so the libmediainfo
+        # package installs libmediainfo.so.23.0 (the major number is the
+        # port's, and changes), not the upstream soname libmediainfo.so.0.
+        # dlopen("libmediainfo.so.23") finds the newest minor version, so use
+        # the installed major number.
+        file(GLOB _mediagrep_mi_files "/usr/local/lib/libmediainfo.so.*")
+        list(SORT _mediagrep_mi_files)
+        list(REVERSE _mediagrep_mi_files)
+        foreach(_mediagrep_mi_file IN LISTS _mediagrep_mi_files)
+            get_filename_component(_mediagrep_mi_name "${_mediagrep_mi_file}" NAME)
+            if(_mediagrep_mi_name MATCHES "^(libmediainfo\\.so\\.[0-9]+)\\.[0-9]+$")
+                set(MEDIAGREP_MEDIAINFO_LIBRARY "${CMAKE_MATCH_1}")
+                break()
+            endif()
+        endforeach()
     endif()
     if(MEDIAGREP_MEDIAINFO_LIBRARY)
         message(STATUS "MediaInfoLib will be loaded from ${MEDIAGREP_MEDIAINFO_LIBRARY}")
