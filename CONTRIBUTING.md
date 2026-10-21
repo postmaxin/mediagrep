@@ -81,6 +81,13 @@ Each can be run locally on Linux; use a separate build directory.
   the packages as artifacts without a release. If you add a file to the
   install rules, check that both packages list it.
 
+- **Entware packages.** For each of three architectures the release
+  workflow installs Entware into a `debian:stable-slim` container (ARM
+  ones under QEMU), builds and tests mediagrep with Entware's own GCC,
+  packs the `.ipk` with `tools/make-ipk.sh`, then installs it into a fresh
+  Entware and runs it. `tools/entware-ci.sh` does both steps and runs the
+  same way by hand with Docker; its header shows the commands.
+
 A suppression or a disabled check needs a comment saying why. Do not add
 one to hide a real defect; file an issue first and link it.
 

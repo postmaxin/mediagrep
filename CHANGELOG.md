@@ -87,4 +87,8 @@ The first release.
   `libmediainfo0v5` (Debian, Ubuntu) or `libmediainfo` (Fedora), so
   installing one also installs MediaInfoLib, which neither package manager
   would otherwise find because mediagrep loads it with `dlopen`.
+- Each release attaches an opkg `.ipk` for Entware, for `x64-3.2`,
+  `aarch64-3.10` and `armv7-3.2`, built natively inside Entware (its
+  glibc 2.27 cannot run the Linux archive's binary). `opkg install` pulls
+  in `libmediainfo`. `tools/make-ipk.sh` packs one by hand.
 - `SECURITY.md` says how to report a vulnerability privately.

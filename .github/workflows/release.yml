@@ -165,9 +165,54 @@ jobs:
               mediagrep -ri engineering /fixtures
             '
 
+  # opkg packages for Entware (NAS boxes). Entware has its own glibc (2.27),
+  # so the binary is built natively inside Entware, not from the Linux job's.
+  # The other architectures run under QEMU.
+  entware:
+    name: Entware ${{ matrix.arch }}
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64-3.2
+            feed: x64-k3.2
+            platform: linux/amd64
+          - arch: aarch64-3.10
+            feed: aarch64-k3.10
+            platform: linux/arm64
+          - arch: armv7-3.2
+            feed: armv7sf-k3.2
+            platform: linux/arm/v7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.platform != 'linux/amd64'
+      - name: Build and test inside Entware, and pack the .ipk
+        run: |
+          mkdir -p ipk
+          docker run --rm --platform ${{ matrix.platform }}             -v "$PWD:/src:ro" -v "$PWD/ipk:/out" debian:stable-slim             sh /src/tools/entware-ci.sh build ${{ matrix.feed }} ${{ matrix.arch }}
+      - name: Install the .ipk into a fresh Entware and run it
+        run: |
+          docker run --rm --platform ${{ matrix.platform }}             -v "$PWD:/src:ro" -v "$PWD/ipk:/out:ro" debian:stable-slim             sh /src/tools/entware-ci.sh check ${{ matrix.feed }}
+      - name: Package contents
+        run: |
+          for f in ipk/*.ipk; do
+            echo "== $f"; tar -tzvf "$f"
+            tar -xzOf "$f" ./control.tar.gz | tar -tzv
+            tar -xzOf "$f" ./control.tar.gz | tar -xzO ./control
+            tar -xzOf "$f" ./data.tar.gz | tar -tzv
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipk-${{ matrix.arch }}
+          path: ipk/*.ipk
+
   draft:
     name: Draft release
-    needs: [version, windows, linux, package-check]
+    needs: [version, windows, linux, package-check, entware]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
