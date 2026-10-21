@@ -32,7 +32,7 @@ struct FileInfo {
     std::optional<std::time_t> modified;
     std::optional<std::time_t> created;   // birth time, where the OS keeps one
     std::optional<std::time_t> accessed;
-    unsigned mode = 0;                    // permission bits (0644); 0 if unknown
+    std::optional<unsigned> mode;         // permission bits (0644); POSIX only
     std::string owner;                    // empty if unknown
     std::string group;                    // empty if unknown
 };

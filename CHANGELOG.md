@@ -20,9 +20,11 @@ The first release.
   dates (`>= 2024-03`) compare by value.
 - A `File` track from `stat`: name, directory, extension, size, times,
   and on POSIX mode, owner and group.
-- A `Path` track recognized from file names: dates, `S01E02` season and
-  episode, and the yt-dlp video id (the bracketed word at the end of the
-  name, not an earlier one; dates and episodes are not read inside it).
+- A `Path` track recognized from file names (a bare name such as
+  `Episode 3.mkv` inside `Season 2/` still sees its folder): dates,
+  `S01E02` season and episode, and the yt-dlp video id (the bracketed
+  word at the end of the name, not an earlier one; dates and episodes
+  are not read inside it).
 - Aliases `@when`, `@who` and `@name` that search every field carrying
   that kind of information, reporting the one that matched.
 - `--fields FILE` lists every field of a file, to find what to search.

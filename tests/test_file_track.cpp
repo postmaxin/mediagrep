@@ -1,9 +1,17 @@
 #include <cstdlib>
 
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #include "doctest.h"
 #include "fake_source.h"
 #include "file_track.h"
 #include "fsys.h"
+#include "tmp_tree.h"
 
 using namespace mediagrep;
 using namespace mediagrep::test;
@@ -116,3 +124,108 @@ TEST_CASE("a name with nothing recognizable has no Path track") {
     FileTrackSource src(inner, fixture("talk.mkv"));
     CHECK(src.trackCount(TrackKind::Path) == 0);
 }
+
+namespace {
+// Writes backslashes as '|' so the cases below stay readable.
+std::string bs(std::string s) {
+    for (char& c : s)
+        if (c == '|') c = '\\';
+    return s;
+}
+}  // namespace
+
+TEST_CASE("the directory of a file at a Windows drive root keeps its separator") {
+    CHECK(directoryOfPath(bs("E:|clip.mkv"), true) == bs("E:|"));
+    CHECK(directoryOfPath("E:/clip.mkv", true) == "E:/");
+    CHECK(directoryOfPath(bs("||?|E:|clip.mkv"), true) == bs("||?|E:|"));
+    CHECK(directoryOfPath(bs("E:|a|clip.mkv"), true) == bs("E:|a"));
+    CHECK(directoryOfPath(bs("E:|a||clip.mkv"), true) == bs("E:|a"));
+    CHECK(directoryOfPath(bs("||srv|share|x.mkv"), true) == bs("||srv|share"));
+    CHECK(directoryOfPath("clip.mkv", true) == ".");
+    // "E:clip.mkv" is relative to the current directory on E:, not the root.
+    CHECK(directoryOfPath("E:clip.mkv", true) == "E:");
+}
+
+TEST_CASE("the directory of a POSIX path") {
+    CHECK(directoryOfPath("talk.mkv", false) == ".");
+    CHECK(directoryOfPath("/a/b.mkv", false) == "/a");
+    CHECK(directoryOfPath("/b.mkv", false) == "/");
+    CHECK(directoryOfPath("a//b.mkv", false) == "a");
+    CHECK(directoryOfPath("./b.mkv", false) == ".");
+    CHECK(directoryOfPath("../b.mkv", false) == "..");
+    // A backslash is an ordinary character in a POSIX name.
+    CHECK(directoryOfPath(bs("E:|clip.mkv"), false) == ".");
+}
+
+namespace {
+
+// Runs in `dir` and returns to the previous working directory.
+struct InDirectory {
+    std::string saved;
+    explicit InDirectory(const std::string& dir) {
+        char buf[4096];
+#ifdef _WIN32
+        saved = _getcwd(buf, sizeof buf) ? buf : ".";
+        REQUIRE(_chdir(dir.c_str()) == 0);
+#else
+        saved = getcwd(buf, sizeof buf) ? buf : ".";
+        REQUIRE(::chdir(dir.c_str()) == 0);
+#endif
+    }
+    ~InDirectory() {
+#ifdef _WIN32
+        _chdir(saved.c_str());
+#else
+        if (::chdir(saved.c_str()) != 0) std::abort();
+#endif
+    }
+};
+
+}  // namespace
+
+TEST_CASE("a bare name takes its Path season from the real parent directory") {
+    TempTree tree("mg-filetrack");
+    tree.file("Season 2/Episode 3.mkv");
+    tree.dir("Season 2/sub");
+    FakeSource inner;
+
+    // From the parent: the displayed directory has the right name already.
+    FileTrackSource viaParent(inner, tree.path("Season 2/Episode 3.mkv"));
+    CHECK(viaParent.lookup(TrackKind::Path, 0, "Season")->value == "2");
+
+    InDirectory here(tree.path("Season 2"));
+    for (const char* path : {"Episode 3.mkv", "./Episode 3.mkv"}) {
+        CAPTURE(path);
+        FileTrackSource src(inner, path);
+        REQUIRE(src.lookup(TrackKind::Path, 0, "Season"));
+        CHECK(src.lookup(TrackKind::Path, 0, "Season")->value == "2");
+        // File/Directory stays as the user gave it.
+        REQUIRE(src.lookup(TrackKind::File, 0, "Directory"));
+        CHECK(src.lookup(TrackKind::File, 0, "Directory")->value == ".");
+    }
+    CHECK(recognitionDirectoryName(".") == "Season 2");
+    CHECK(recognitionDirectoryName("sub/..") == "Season 2");
+    CHECK(recognitionDirectoryName("sub") == "sub");  // not resolved, not special
+    {
+        InDirectory deeper(tree.path("Season 2/sub"));
+        FileTrackSource src(inner, "../Episode 3.mkv");
+        REQUIRE(src.lookup(TrackKind::Path, 0, "Season"));
+        CHECK(src.lookup(TrackKind::Path, 0, "Season")->value == "2");
+        CHECK(src.lookup(TrackKind::File, 0, "Directory")->value == "..");
+    }
+}
+
+#ifndef _WIN32
+TEST_CASE("File/Mode is present even when the permission bits are 0000") {
+    TempTree tree("mg-filemode");
+    tree.file("locked.mkv");
+    const std::string path = tree.path("locked.mkv");
+    REQUIRE(::chmod(path.c_str(), 0) == 0);
+    FakeSource inner;
+    FileTrackSource src(inner, path);
+    ::chmod(path.c_str(), 0600);
+    const auto mode = src.lookup(TrackKind::File, 0, "Mode");
+    REQUIRE(mode);
+    CHECK(mode->value == "0000");
+}
+#endif
