@@ -94,3 +94,77 @@ jobs:
         run: |
           .\build\Release\mediagrep.exe --version
           .\build\Release\mediagrep.exe -ri engineering tests\fixtures
+
+  # The BSDs run in virtual machines (vmactions). Each builds with the
+  # system's own compiler and runs the whole suite against the system's
+  # MediaInfoLib package (libmediainfo), loaded at runtime and linked at
+  # build time. OpenBSD's package has its own shared library number, which
+  # CMakeLists.txt picks up (see the OpenBSD part of the library lookup).
+  #
+  # The VM gets the checkout with its owner's numeric uid and gid, which the
+  # VM has no passwd or group entry for, and the File track tests expect the
+  # owner to have a name. So the run step adds an entry first (the i386 job
+  # does the same).
+  freebsd:
+    name: FreeBSD (${{ matrix.link }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        link: [dynamic, static]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        env:
+          LINK: ${{ matrix.link == 'static' && 'ON' || 'OFF' }}
+        with:
+          release: "15.1"
+          envs: LINK
+          prepare: |
+            pkg install -y cmake ninja pkgconf libmediainfo
+          run: |
+            set -eux
+            uname -a
+            uid=$(stat -f %u .)
+            gid=$(stat -f %g .)
+            getent group "$gid" || pw groupadd ci -g "$gid"
+            getent passwd "$uid" || pw useradd ci -u "$uid" -g "$gid" -s /usr/sbin/nologin
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMEDIAGREP_LINK_STATIC="$LINK"
+            cmake --build build
+            ctest --test-dir build --output-on-failure
+            ./build/mediagrep --version
+            ./build/mediagrep -ri engineering tests/fixtures
+
+  openbsd:
+    name: OpenBSD (${{ matrix.link }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        link: [dynamic, static]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test in OpenBSD
+        uses: vmactions/openbsd-vm@v1
+        env:
+          LINK: ${{ matrix.link == 'static' && 'ON' || 'OFF' }}
+        with:
+          release: "8.0"
+          envs: LINK
+          prepare: |
+            pkg_add cmake ninja libmediainfo
+          run: |
+            set -eux
+            uname -a
+            uid=$(stat -f %u .)
+            gid=$(stat -f %g .)
+            getent group "$gid" || groupadd -g "$gid" ci
+            getent passwd "$uid" || useradd -u "$uid" -g "$gid" -s /sbin/nologin ci
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMEDIAGREP_LINK_STATIC="$LINK"
+            cmake --build build
+            ctest --test-dir build --output-on-failure
+            ./build/mediagrep --version
+            ./build/mediagrep -ri engineering tests/fixtures

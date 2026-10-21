@@ -29,8 +29,15 @@ MediaInfoLib backend and the command line run against the small files in
 ffmpeg, so a new fixture should be added there rather than as an
 unexplained binary.
 
-CI builds and tests every push on Linux, macOS and Windows, with the
-library both loaded at runtime and linked at build time.
+CI builds and tests every push on Linux, macOS, Windows, FreeBSD and
+OpenBSD, with the library both loaded at runtime and linked at build time
+(Windows only loads it). The BSD jobs run in virtual machines
+([vmactions](https://github.com/vmactions), so they start slower than the
+rest), install the system `libmediainfo` package, and run the whole suite.
+They add a passwd and group entry for the checkout's owner, because the
+File track tests expect the owner to have a name. OpenBSD's package uses
+its own shared library number, which `CMakeLists.txt` looks up at
+configure time.
 
 ## Analysis jobs
 

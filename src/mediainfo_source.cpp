@@ -22,7 +22,18 @@
 #pragma GCC diagnostic ignored "-Wconversion-null"
 #endif
 #ifdef MEDIAGREP_LINK_STATIC
+#if defined(__OpenBSD__)
+// OpenBSD defines NULL as nullptr in C++, and MediaInfoDLL_Static.h uses it
+// as the default of a size_t parameter, which then does not compile.
+#include <cstddef>
+#pragma push_macro("NULL")
+#undef NULL
+#define NULL 0
+#endif
 #include "MediaInfoDLL_Static.h"
+#if defined(__OpenBSD__)
+#pragma pop_macro("NULL")
+#endif
 #else
 // The vendored loader also tries "./libmediainfo.so.0", which would run a
 // library planted in the current directory (issue #29). Include what it

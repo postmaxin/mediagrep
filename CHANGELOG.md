@@ -21,6 +21,18 @@ follow [Semantic Versioning](https://semver.org/).
   page is left alone. Output redirected to a file or pipe is unchanged
   (UTF-8). NUL is no longer treated as a terminal for progress and
   match output.
+- OpenBSD: the build failed because `struct stat` has no `st_birthtime`
+  there. `File/Created` is now absent on OpenBSD, as it is where any OS
+  keeps no birth time.
+- OpenBSD: the runtime-loaded build could not find MediaInfoLib, because
+  the OpenBSD package installs `libmediainfo.so.N.M` with its own major
+  number (23 on OpenBSD 8.0), not `libmediainfo.so.0`. The build now uses
+  the installed library's major number.
+
+### Changed
+
+- CI builds and tests on FreeBSD and OpenBSD, so the README's BSD support
+  is now checked on every push.
 
 ## [0.1.0] - 2026-10-21
 
