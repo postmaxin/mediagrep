@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(NOT WIN32)
+    # 64-bit off_t, struct stat and ino_t on 32-bit glibc and uClibc (Entware
+    # on 32-bit ARM NAS boxes). Without it stat() fails with EOVERFLOW for a
+    # file of 2 GiB or more, and readdir() for a large inode number. It does
+    # nothing on 64-bit targets. Set here so it reaches every target.
+    add_compile_definitions(_FILE_OFFSET_BITS=64)
+endif()
+
 option(MEDIAGREP_BUILD_TESTS "Build the test suite" ON)
 option(MEDIAGREP_LINK_STATIC
        "Link MediaInfoLib at build time instead of loading it at runtime" OFF)

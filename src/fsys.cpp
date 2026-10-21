@@ -1,5 +1,6 @@
 #include "fsys.h"
 
+#include <limits>
 #include <system_error>
 #include <utility>
 
@@ -91,8 +92,14 @@ std::optional<std::time_t> fileTimeToUnix(std::uint64_t ticks) {
     if (ticks == 0) return std::nullopt;
     constexpr std::int64_t kSecondsFrom1601To1970 = 11644473600;
     // Whole seconds first, then the signed offset, so dates before 1970 come out negative.
-    return static_cast<std::time_t>(static_cast<std::int64_t>(ticks / 10000000ULL) -
-                                    kSecondsFrom1601To1970);
+    const std::int64_t seconds =
+        static_cast<std::int64_t>(ticks / 10000000ULL) - kSecondsFrom1601To1970;
+    // A 32-bit time_t covers only 1901-2038; outside that the time is unknown,
+    // not a wrapped-around date.
+    if (seconds < static_cast<std::int64_t>(std::numeric_limits<std::time_t>::min()) ||
+        seconds > static_cast<std::int64_t>(std::numeric_limits<std::time_t>::max()))
+        return std::nullopt;
+    return static_cast<std::time_t>(seconds);
 }
 
 bool isLinkReparseTag(std::uint32_t tag) {
