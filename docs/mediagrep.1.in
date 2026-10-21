@@ -275,6 +275,15 @@ mediagrep \-rl \-e \(aq@when = 2024\(aq .
 Regular expressions use the C++ standard library. With GCC's library,
 a regular expression is not applied to values longer than 256 KB, and a
 warning says so.
+.PP
+On Windows,
+.B \-r
+skips only symbolic links, junctions and mount points. Other reparse points
+(OneDrive Files On-Demand placeholders, deduplicated files) are searched as
+ordinary files. Reading a cloud-only placeholder makes Windows download it,
+as opening it in Explorer would. A bare drive such as
+.B C:
+means the current directory on that drive.
 .SH SEE ALSO
 .BR grep (1),
 .BR mediainfo (1)

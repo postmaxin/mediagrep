@@ -90,6 +90,17 @@ bool findFailureEndsListing(unsigned long code, bool first);
 // toward the past. nullopt for 0, which Windows uses for "not recorded".
 std::optional<std::time_t> fileTimeToUnix(std::uint64_t ticks);
 
+// Whether a Windows reparse tag marks a link, as opposed to a file the OS
+// merely handles specially (OneDrive placeholders, dedup, AppExecLink). Only
+// name-surrogate tags (symlinks, junctions, mount points) are links.
+bool isLinkReparseTag(std::uint32_t tag);
+
+// The Windows spellings of join() and of the FindFirstFileW pattern that lists
+// a directory. A bare drive letter ("C:") is the current directory on that
+// drive, so no separator may be put between it and what follows.
+std::string windowsJoin(const std::string& dir, const std::string& name);
+std::string windowsSearchPattern(const std::string& dir);
+
 }  // namespace detail
 
 }  // namespace mediagrep::fsys

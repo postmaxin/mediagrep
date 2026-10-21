@@ -83,6 +83,16 @@ not recognize as media are skipped
 silently, so sidecars and text files in a collection are fine. Images
 are media to MediaInfoLib, so use `--exclude` to skip them when needed.
 
+On Windows, `-r` skips only real links (symbolic links, junctions and
+mount points). Other reparse points, such as OneDrive Files On-Demand
+placeholders, deduplicated files and WSL files, are ordinary files and
+are searched. Reading a cloud-only placeholder makes Windows download
+it, exactly as if you had opened it in Explorer, so `-r` over a OneDrive
+folder can download everything in it. Use `--include`/`--exclude`, or
+keep the search to folders that are already local, to avoid that.
+A bare drive such as `C:` means the current directory on that drive, as
+in `cmd.exe`.
+
 On Unix, MediaInfoLib opens files through the C library's locale
 conversion, so a UTF-8 locale must exist on the system for file names
 with non-ASCII characters. mediagrep selects one itself (the
