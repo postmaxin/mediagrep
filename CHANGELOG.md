@@ -42,6 +42,9 @@ The first release.
 - A value that merely starts with a date, such as the file name
   `2024-03-01.mkv` or the title `2024-03-01 Interview`, is no longer
   equal to `2024-03-01`; only real date values compare as dates.
+- Regexes run on values of any length with GCC's standard library, which
+  used to crash on long values and deeply nested groups. Patterns with
+  back-references still skip values over 256 KB, with a warning.
 - Exit status 0 when anything was selected, 1 when nothing was, 2 on
   error, including a failure to write the output (checked at the final
   flush, so `> /dev/full` is reported instead of silently losing it).

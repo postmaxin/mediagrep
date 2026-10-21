@@ -53,13 +53,8 @@ jobs:
           -DMEDIAGREP_SANITIZE=thread
       - name: Build
         run: cmake --build build
-      # The excluded test feeds 200,000 characters to std::regex on a worker
-      # thread and segfaults under TSan only (it passes under ASan and plain
-      # builds). Most likely TSan's larger stack frames overflow the stack the
-      # regex limit was sized for. Tracked in issue #7: libstdc++ is moving to its
-      # non-recursive __polynomial regex executor; remove the exclusion then.
       - name: Test
-        run: ./build/mediagrep_tests -tce='pool workers run backtracking*'
+        run: ./build/mediagrep_tests
 
   clang-tidy:
     name: clang-tidy

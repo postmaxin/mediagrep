@@ -422,13 +422,23 @@ should not require the dev package at all.
 
 ## Regex safety
 
-libstdc++'s std::regex recurses once per character for patterns such as
-`a.*b`: measured at about 80 bytes per character for `a.*b` and 400 for
-`(a|b)*b`, so a 5,000-character description crashes a 512 KB macOS
-thread and 100,000 characters crash an 8 MB Linux one. Workers therefore
-run on threads that reserve 256 MB of stack (falling back to 64 and 16 MB
-where address space is short), and on libstdc++ each thread refuses to
-regex-match values longer than its stack divided by 1 KB, warning once.
+libstdc++'s default std::regex executor recurses once per input
+character, and the stack per character grows with group nesting: about
+80 bytes for `a.*b`, 400 for `(a|b)*b`, and about 10 KB for a pattern
+nested 32 groups deep. A fixed bytes-per-character limit therefore cannot
+be right for every pattern (a 32-deep group crashed even the 256 MB
+worker stack on 200,000 characters; issue #7).
+
+On libstdc++ (`__GLIBCXX__`) every pattern is first compiled with
+`std::regex_constants::__polynomial`, which selects its breadth-first
+(Thompson NFA) executor: no recursion per character and no exponential
+backtracking. Matching only asks whether the text matches, so the answer
+is the same. That executor rejects back-references with `regex_error`; such
+a pattern falls back to the default executor and keeps the old defence.
+Workers run on threads that reserve 256 MB of stack (falling back to 64
+and 16 MB where address space is short), and a thread refuses to
+regex-match, for a back-reference pattern, values longer than its stack
+divided by 1 KB, warning once.
 MSVC's implementation instead throws `error_stack`; that, and any other
 `regex_error` during matching, is a warning and counts as no answer for
 that value, so it satisfies neither `~` nor `!~`.

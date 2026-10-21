@@ -22,9 +22,10 @@ namespace {
 // 32-bit systems where many workers would not fit.
 constexpr std::size_t kStackSizes[] = {256u << 20, 64u << 20, 16u << 20};
 
-// Bytes of stack budgeted per character of regex input. Measured with
-// libstdc++: 'a.*b' uses about 80 bytes per character and '(a|b)*b' about
-// 400, so this leaves room for somewhat more complex patterns.
+// Bytes of stack budgeted per character of regex input, for the patterns
+// libstdc++ must run recursively (those with back-references; the rest use
+// its non-recursive executor, see eval.cpp). Measured: 'a.*b' uses about 80
+// bytes per character and '(a|b)*b' about 400.
 constexpr std::size_t kStackPerChar = 1024;
 
 #if defined(__GLIBCXX__)
